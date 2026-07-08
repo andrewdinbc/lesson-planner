@@ -1,5 +1,5 @@
-import { sbSelect, sbInsert, sbDelete } from '../../../../lib/supabase'
-import { getCurrentUser } from '../../../../lib/session'
+import { sbSelect, sbInsert, sbDelete } from '../../../lib/supabase'
+import { getCurrentUser } from '../../../lib/session'
 
 // "Steering documents": full source texts (curriculum guides, exemplar
 // units, board policy docs, anything) that get fed into generation prompts
