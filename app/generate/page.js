@@ -1,11 +1,11 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 
 const C = { navy: '#1c3557', gold: '#b57c2a', green: '#1a7a3e', border: '#ddd4c2', bg: '#f2ede3' }
 const TYPE_LABEL = { year: 'Year', month: 'Month', week: 'Week', day: 'Day', lesson: 'Lesson' }
 
-export default function GeneratePage() {
+function GenerateForm() {
   const params = useSearchParams()
   const router = useRouter()
   const type = params.get('type') || 'year'
@@ -117,5 +117,13 @@ export default function GeneratePage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function GeneratePage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 32, fontFamily: 'Georgia, serif' }}>Loading…</div>}>
+      <GenerateForm />
+    </Suspense>
   )
 }
