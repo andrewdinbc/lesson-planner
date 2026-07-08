@@ -1,0 +1,44 @@
+import { sbSelect, sbInsert, sbDelete } from '../../../../lib/supabase'
+import { getCurrentUser } from '../../../../lib/session'
+
+// "Steering documents": full source texts (curriculum guides, exemplar
+// units, board policy docs, anything) that get fed into generation prompts
+// as background context — per Aj's explicit requirement, so plan generation
+// is grounded in real source material instead of generic output.
+
+export async function GET() {
+  const user = await getCurrentUser()
+  if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
+  try {
+    const docs = await sbSelect('steering_documents', `?user_id=eq.${user.id}&select=id,title,created_at&order=created_at.desc`)
+    return Response.json({ documents: docs })
+  } catch (e) {
+    return Response.json({ error: e.message }, { status: 500 })
+  }
+}
+
+export async function POST(request) {
+  const user = await getCurrentUser()
+  if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
+  try {
+    const { title, fullText } = await request.json()
+    if (!title || !fullText) return Response.json({ error: 'title and fullText required' }, { status: 400 })
+    const [doc] = await sbInsert('steering_documents', [{ user_id: user.id, title, full_text: fullText }])
+    return Response.json({ document: { id: doc.id, title: doc.title, created_at: doc.created_at } })
+  } catch (e) {
+    return Response.json({ error: e.message }, { status: 500 })
+  }
+}
+
+export async function DELETE(request) {
+  const user = await getCurrentUser()
+  if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
+  try {
+    const { id } = await request.json()
+    if (!id) return Response.json({ error: 'id required' }, { status: 400 })
+    await sbDelete('steering_documents', `?id=eq.${id}&user_id=eq.${user.id}`)
+    return Response.json({ deleted: id })
+  } catch (e) {
+    return Response.json({ error: e.message }, { status: 500 })
+  }
+}
