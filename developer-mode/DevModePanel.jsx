@@ -177,9 +177,16 @@ Never show actual code. Focus on what the change does, not how it works.`;
   }
 
   // ── Submit to Morpheus ─────────────────────────────────────────────────
-  async function submitForReview() {
+  async function submitForReview(queueOnly = false) {
     if (!patch) return;
     setSubmitting(true);
+
+    // implementNow reflects an explicit in-the-moment choice, not just the
+    // app's default mode - a personal-mode app still lets Andrew hit
+    // "Queue for Later" for anything he doesn't want interrupting him right
+    // now, and dev-submit on the Hyperion side must honour this flag rather
+    // than always auto-triggering run-tasks for mode:"personal".
+    const implementNow = mode === "personal" && !queueOnly;
 
     const submission = {
       productName,
@@ -191,6 +198,7 @@ Never show actual code. Focus on what the change does, not how it works.`;
       sessionTranscript: history.map(m => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n"),
       submittedAt: new Date().toISOString(),
       mode,
+      implementNow,
     };
 
     try {
@@ -203,7 +211,7 @@ Never show actual code. Focus on what the change does, not how it works.`;
 
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
-        if (mode === "personal" && data.submissionId) {
+        if (implementNow && data.submissionId) {
           setSubmissionId(data.submissionId);
           setStage(STAGES.IMPLEMENTING);
           pollStatus(data.submissionId);
@@ -473,7 +481,7 @@ Never show actual code. Focus on what the change does, not how it works.`;
                 <div style={{ color:C.text, fontWeight:700, fontSize:14 }}>📬 Submit for Review</div>
                 <div style={{ color:C.muted, fontSize:13, lineHeight:1.6 }}>
                   {mode === "personal"
-                    ? `Your suggested change will be implemented directly - no approval step. It'll be queued into the build pipeline right away.`
+                    ? `Choose below: implement right away, or queue it for the next overnight build cycle instead.`
                     : `Your suggested change will be reviewed by Andrew Din, usually within 24 hours. If accepted, it'll be built into ${productName}. You'll get an email when it's reviewed.`}
                 </div>
                 <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 12px" }}>
@@ -491,15 +499,30 @@ Never show actual code. Focus on what the change does, not how it works.`;
                     style={{ width:"100%", minHeight:72, padding:"9px 11px", borderRadius:7, border:`1px solid ${C.border}`, background:C.surface, color:C.text, fontSize:13, lineHeight:1.5, resize:"vertical", boxSizing:"border-box", fontFamily:"inherit" }}
                   />
                 </div>
-                <div style={{ display:"flex", gap:8 }}>
-                  <button onClick={() => setStage(STAGES.CHAT)}
-                    style={{ flex:1, padding:"10px 0", borderRadius:8, border:`1px solid ${C.border}`, background:"transparent", color:C.muted, fontSize:13, fontWeight:700, cursor:"pointer" }}>
-                    ← Keep refining
-                  </button>
-                  <button onClick={submitForReview} disabled={submitting}
-                    style={{ flex:2, padding:"10px 0", borderRadius:8, border:"none", background:C.accent, color:"#fff", fontSize:13, fontWeight:800, cursor:submitting?"not-allowed":"pointer", opacity:submitting?0.6:1 }}>
-                    {submitting ? "Submitting…" : "✓ Submit for Review"}
-                  </button>
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={() => setStage(STAGES.CHAT)}
+                      style={{ flex:1, padding:"10px 0", borderRadius:8, border:`1px solid ${C.border}`, background:"transparent", color:C.muted, fontSize:13, fontWeight:700, cursor:"pointer" }}>
+                      ← Keep refining
+                    </button>
+                    {mode === "personal" ? (
+                      <button onClick={() => submitForReview(false)} disabled={submitting}
+                        style={{ flex:2, padding:"10px 0", borderRadius:8, border:"none", background:C.accent, color:"#fff", fontSize:13, fontWeight:800, cursor:submitting?"not-allowed":"pointer", opacity:submitting?0.6:1 }}>
+                        {submitting ? "Submitting…" : "⚡ Implement Now"}
+                      </button>
+                    ) : (
+                      <button onClick={() => submitForReview(false)} disabled={submitting}
+                        style={{ flex:2, padding:"10px 0", borderRadius:8, border:"none", background:C.accent, color:"#fff", fontSize:13, fontWeight:800, cursor:submitting?"not-allowed":"pointer", opacity:submitting?0.6:1 }}>
+                        {submitting ? "Submitting…" : "✓ Submit for Review"}
+                      </button>
+                    )}
+                  </div>
+                  {mode === "personal" && (
+                    <button onClick={() => submitForReview(true)} disabled={submitting}
+                      style={{ padding:"9px 0", borderRadius:8, border:`1px solid ${C.border}`, background:"transparent", color:C.muted, fontSize:12, fontWeight:700, cursor:submitting?"not-allowed":"pointer", opacity:submitting?0.6:1 }}>
+                      🕒 Queue for Later (next overnight cycle instead)
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -511,7 +534,7 @@ Never show actual code. Focus on what the change does, not how it works.`;
                 <div style={{ color:C.text, fontWeight:800, fontSize:15, marginBottom:8 }}>Submitted!</div>
                 <div style={{ color:C.muted, fontSize:13, lineHeight:1.7, marginBottom:20 }}>
                   {mode === "personal"
-                    ? <>Your change has been queued for implementation - no approval step needed. You'll see it built into the app once it's done.</>
+                    ? <>Queued for the next overnight build cycle - no approval step needed, it'll just run later instead of right now.</>
                     : <>Your suggestion has been sent for review. Andrew will look at it within 24 hours and you'll get an email at <strong style={{ color:C.text }}>{userEmail}</strong> when it's been reviewed.</>}
                 </div>
                 <button onClick={() => { setStage(STAGES.CHAT); setHistory([]); setPatch(null); setSubmitNote(""); }}
