@@ -1,10 +1,18 @@
 'use client'
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 const C = { navy: '#1c3557', gold: '#b57c2a', green: '#1a7a3e', border: '#ddd4c2', bg: '#f2ede3' }
 
 export default function NewMicroUnitPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 32, color: '#8a7d6e' }}>Loading…</div>}>
+      <NewMicroUnitForm />
+    </Suspense>
+  )
+}
+
+function NewMicroUnitForm() {
   const params = useSearchParams()
   const lessonPlanId = params.get('lessonPlanId')
 
