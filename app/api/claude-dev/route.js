@@ -1,3 +1,4 @@
+// GITHUB_PAT env var set 1783625266 - redeploy to pick it up
 // app/api/claude-dev/route.js
 import Anthropic from '@anthropic-ai/sdk'
 
