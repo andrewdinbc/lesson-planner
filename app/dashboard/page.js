@@ -37,7 +37,7 @@ function PlanNode({ plan, depth }) {
         )}
         {plan.type === 'lesson' && (
           <a href={`/micro-units/new?lessonPlanId=${plan.id}`} style={{ marginLeft: canHaveChildren ? 10 : 'auto', fontSize: 12, color: C.gold }}>
-            + Math Micro-Unit
+            + Math Unit
           </a>
         )}
       </div>
