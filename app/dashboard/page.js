@@ -35,6 +35,11 @@ function PlanNode({ plan, depth }) {
             + Add {TYPE_LABEL[canHaveChildren]}
           </a>
         )}
+        {plan.type === 'lesson' && (
+          <a href={`/micro-units/new?lessonPlanId=${plan.id}`} style={{ marginLeft: canHaveChildren ? 10 : 'auto', fontSize: 12, color: C.gold }}>
+            + Math Micro-Unit
+          </a>
+        )}
       </div>
       {expanded && children && children.length === 0 && (
         <div style={{ marginLeft: 34, padding: '6px 0', color: '#8a7d6e', fontSize: 13, fontStyle: 'italic' }}>
