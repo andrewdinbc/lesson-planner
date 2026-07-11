@@ -1,14 +1,22 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { STEERING_CATEGORIES } from '../../lib/steering-categories'
 
-const C = { navy: '#1c3557', gold: '#b57c2a', green: '#1a7a3e', border: '#ddd4c2', bg: '#f2ede3' }
+const C = { navy: '#1c3557', gold: '#b57c2a', green: '#1a7a3e', border: '#ddd4c2', bg: '#f2ede3', muted: '#8a7d6e' }
 
 export default function SteeringPage() {
   const [docs, setDocs] = useState([])
-  const [title, setTitle] = useState('')
-  const [text, setText] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  // Upload-a-book form state
+  const [mode, setMode] = useState('upload') // 'upload' | 'paste'
+  const [file, setFile] = useState(null)
+  const [title, setTitle] = useState('')
+  const [author, setAuthor] = useState('')
+  const [category, setCategory] = useState(STEERING_CATEGORIES[2].key) // default: Actionable Resources
+  const [pasteText, setPasteText] = useState('')
+  const [uploading, setUploading] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -23,20 +31,37 @@ export default function SteeringPage() {
 
   useEffect(() => { load() }, [])
 
-  async function addDoc(e) {
+  async function handleUpload(e) {
     e.preventDefault()
     setError('')
-    if (!title.trim() || !text.trim()) return
+    if (!title.trim()) { setError('Title is required'); return }
+
+    setUploading(true)
     try {
-      const res = await fetch('/api/steering-documents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.trim(), fullText: text.trim() }),
-      })
-      if (!res.ok) throw new Error((await res.json()).error || 'Failed')
-      setTitle(''); setText('')
+      if (mode === 'upload') {
+        if (!file) { setError('Choose a PDF file'); setUploading(false); return }
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('title', title.trim())
+        formData.append('category', category)
+        if (author.trim()) formData.append('author', author.trim())
+
+        const res = await fetch('/api/steering-documents/upload', { method: 'POST', body: formData })
+        if (!res.ok) throw new Error((await res.json()).error || 'Upload failed')
+      } else {
+        if (!pasteText.trim()) { setError('Paste some text first'); setUploading(false); return }
+        const res = await fetch('/api/steering-documents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: title.trim(), fullText: pasteText.trim(), category, author: author.trim() || null }),
+        })
+        if (!res.ok) throw new Error((await res.json()).error || 'Failed')
+      }
+
+      setTitle(''); setAuthor(''); setPasteText(''); setFile(null)
       await load()
     } catch (e) { setError(e.message) }
+    setUploading(false)
   }
 
   async function removeDoc(id) {
@@ -44,56 +69,139 @@ export default function SteeringPage() {
     await load()
   }
 
+  const grouped = STEERING_CATEGORIES.map((cat) => ({
+    ...cat,
+    docs: docs.filter((d) => (d.category || 'actionable_resources') === cat.key),
+  }))
+
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'Georgia, serif', padding: 32 }}>
-      <div style={{ maxWidth: 800, margin: '0 auto' }}>
+      <div style={{ maxWidth: 900, margin: '0 auto' }}>
         <a href="/dashboard" style={{ color: C.navy, fontSize: 13 }}>← Dashboard</a>
-        <h1 style={{ color: C.navy, fontSize: 28, margin: '8px 0 4px' }}>Steering Documents</h1>
-        <p style={{ color: '#8a7d6e', fontSize: 14, marginBottom: 24 }}>
-          Full texts (curriculum guides, exemplar units, policy docs) used as background context
-          when generating plans — select which ones to apply on the Generate page.
+        <h1 style={{ color: C.navy, fontSize: 28, margin: '8px 0 4px' }}>Steering Resources</h1>
+        <p style={{ color: C.muted, fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>
+          Upload full books or resources (PDF, 100+ pages fine) to guide how lesson plans get generated —
+          organized into three categories, each used differently: Philosophy shapes the <em>why</em>,
+          Psychology shapes the <em>how/pacing</em>, Actionable Resources supplies concrete techniques and
+          activities pulled directly into the plan. Select which ones to apply on the Generate page.
         </p>
 
-        <form onSubmit={addDoc} style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 20, marginBottom: 24 }}>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Document title (e.g. BC Science Curriculum Grade 5)"
-            style={{ width: '100%', padding: 10, marginBottom: 10, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: 'inherit', boxSizing: 'border-box' }}
-          />
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Paste the full text here…"
-            rows={8}
-            style={{ width: '100%', padding: 10, marginBottom: 10, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: 'inherit', boxSizing: 'border-box' }}
-          />
-          <button type="submit" style={{ padding: '10px 20px', background: C.gold, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
-            + Add Document
-          </button>
-        </form>
+        <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 20, marginBottom: 24 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <button
+              onClick={() => setMode('upload')}
+              style={{
+                padding: '8px 16px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13,
+                border: `1px solid ${C.border}`,
+                background: mode === 'upload' ? C.navy : '#fff',
+                color: mode === 'upload' ? '#fff' : C.navy,
+              }}
+            >
+              📄 Upload PDF (book/resource)
+            </button>
+            <button
+              onClick={() => setMode('paste')}
+              style={{
+                padding: '8px 16px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13,
+                border: `1px solid ${C.border}`,
+                background: mode === 'paste' ? C.navy : '#fff',
+                color: mode === 'paste' ? '#fff' : C.navy,
+              }}
+            >
+              ✏️ Paste text (short excerpts)
+            </button>
+          </div>
+
+          <form onSubmit={handleUpload}>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Title (e.g. Mindset: The New Psychology of Success)"
+              style={{ width: '100%', padding: 10, marginBottom: 10, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: 'inherit', boxSizing: 'border-box' }}
+            />
+            <input
+              value={author}
+              onChange={(e) => setAuthor(e.target.value)}
+              placeholder="Author (optional)"
+              style={{ width: '100%', padding: 10, marginBottom: 10, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: 'inherit', boxSizing: 'border-box' }}
+            />
+
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Category
+            </label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              style={{ width: '100%', padding: 10, marginBottom: 14, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: 'inherit', boxSizing: 'border-box' }}
+            >
+              {STEERING_CATEGORIES.map((c) => (
+                <option key={c.key} value={c.key}>{c.label} — {c.description}</option>
+              ))}
+            </select>
+
+            {mode === 'upload' ? (
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                style={{ width: '100%', marginBottom: 10 }}
+              />
+            ) : (
+              <textarea
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+                placeholder="Paste the text here…"
+                rows={8}
+                style={{ width: '100%', padding: 10, marginBottom: 10, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: 'inherit', boxSizing: 'border-box' }}
+              />
+            )}
+
+            <button
+              type="submit"
+              disabled={uploading}
+              style={{ padding: '10px 20px', background: C.gold, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, opacity: uploading ? 0.6 : 1 }}
+            >
+              {uploading ? 'Processing…' : mode === 'upload' ? '+ Upload & Extract' : '+ Add Document'}
+            </button>
+          </form>
+        </div>
 
         {error && <div style={{ background: '#fdecea', border: '1px solid #f5b7b1', borderRadius: 8, padding: 12, color: '#c0392b', marginBottom: 16 }}>{error}</div>}
 
-        <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 20px', background: C.navy, color: '#fff', fontWeight: 700 }}>
-            {docs.length} document{docs.length === 1 ? '' : 's'}
-          </div>
-          {loading ? (
-            <div style={{ padding: 20, color: '#8a7d6e' }}>Loading…</div>
-          ) : docs.length === 0 ? (
-            <div style={{ padding: 20, color: '#8a7d6e', fontStyle: 'italic' }}>No documents yet.</div>
-          ) : (
-            docs.map((d) => (
-              <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderTop: `1px solid ${C.border}` }}>
-                <span>{d.title}</span>
-                <button onClick={() => removeDoc(d.id)} style={{ padding: '4px 10px', background: '#fff', border: `1px solid ${C.border}`, borderRadius: 6, cursor: 'pointer', color: '#c0392b', fontSize: 12 }}>
-                  Remove
-                </button>
+        {loading ? (
+          <div style={{ color: C.muted, padding: 20 }}>Loading…</div>
+        ) : (
+          grouped.map((cat) => (
+            <div key={cat.key} style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
+              <div style={{ padding: '12px 20px', background: C.navy, color: '#fff' }}>
+                <div style={{ fontWeight: 700 }}>{cat.label} ({cat.docs.length})</div>
+                <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>{cat.description}</div>
               </div>
-            ))
-          )}
-        </div>
+              {cat.docs.length === 0 ? (
+                <div style={{ padding: 16, color: C.muted, fontStyle: 'italic', fontSize: 13 }}>Nothing here yet.</div>
+              ) : (
+                cat.docs.map((d) => (
+                  <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderTop: `1px solid ${C.border}` }}>
+                    <div>
+                      <div style={{ fontWeight: 600, color: C.navy }}>{d.title}</div>
+                      <div style={{ fontSize: 12, color: C.muted }}>
+                        {d.author ? `${d.author} · ` : ''}
+                        {d.num_pages ? `${d.num_pages} pages · ` : ''}
+                        {d.char_count ? `${Math.round(d.char_count / 1000)}k characters` : ''}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => removeDoc(d.id)}
+                      style={{ padding: '4px 10px', background: '#fff', border: `1px solid ${C.border}`, borderRadius: 6, cursor: 'pointer', color: '#c0392b', fontSize: 12 }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          ))
+        )}
       </div>
     </div>
   )
