@@ -16,7 +16,7 @@ export async function GET() {
   try {
     const docs = await sbSelect(
       'steering_documents',
-      `?user_id=eq.${user.id}&select=id,title,author,category,num_pages,char_count,created_at&order=created_at.desc`
+      `?user_id=eq.${user.id}&select=id,title,author,category,num_pages,char_count,source_url,source_type,created_at&order=created_at.desc`
     )
     return Response.json({ documents: docs })
   } catch (e) {
@@ -60,3 +60,4 @@ export async function DELETE(request) {
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+

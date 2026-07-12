@@ -10,8 +10,9 @@ export default function SteeringPage() {
   const [error, setError] = useState('')
 
   // Upload-a-book form state
-  const [mode, setMode] = useState('upload') // 'upload' | 'paste'
+  const [mode, setMode] = useState('upload') // 'upload' | 'paste' | 'web'
   const [file, setFile] = useState(null)
+  const [webUrl, setWebUrl] = useState('')
   const [title, setTitle] = useState('')
   const [author, setAuthor] = useState('')
   const [category, setCategory] = useState(STEERING_CATEGORIES[2].key) // default: Actionable Resources
@@ -34,7 +35,7 @@ export default function SteeringPage() {
   async function handleUpload(e) {
     e.preventDefault()
     setError('')
-    if (!title.trim()) { setError('Title is required'); return }
+    if (mode !== 'web' && !title.trim()) { setError('Title is required'); return }
 
     setUploading(true)
     try {
@@ -48,7 +49,7 @@ export default function SteeringPage() {
 
         const res = await fetch('/api/steering-documents/upload', { method: 'POST', body: formData })
         if (!res.ok) throw new Error((await res.json()).error || 'Upload failed')
-      } else {
+      } else if (mode === 'paste') {
         if (!pasteText.trim()) { setError('Paste some text first'); setUploading(false); return }
         const res = await fetch('/api/steering-documents', {
           method: 'POST',
@@ -56,9 +57,17 @@ export default function SteeringPage() {
           body: JSON.stringify({ title: title.trim(), fullText: pasteText.trim(), category, author: author.trim() || null }),
         })
         if (!res.ok) throw new Error((await res.json()).error || 'Failed')
+      } else {
+        if (!webUrl.trim()) { setError('Enter a URL first'); setUploading(false); return }
+        const res = await fetch('/api/steering-documents/web-source', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: webUrl.trim(), title: title.trim() || undefined, category }),
+        })
+        if (!res.ok) throw new Error((await res.json()).error || 'Failed to fetch and summarize that page')
       }
 
-      setTitle(''); setAuthor(''); setPasteText(''); setFile(null)
+      setTitle(''); setAuthor(''); setPasteText(''); setFile(null); setWebUrl('')
       await load()
     } catch (e) { setError(e.message) }
     setUploading(false)
@@ -110,13 +119,24 @@ export default function SteeringPage() {
             >
               ✏️ Paste text (short excerpts)
             </button>
+            <button
+              onClick={() => setMode('web')}
+              style={{
+                padding: '8px 16px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13,
+                border: `1px solid ${C.border}`,
+                background: mode === 'web' ? C.navy : '#fff',
+                color: mode === 'web' ? '#fff' : C.navy,
+              }}
+            >
+              🌐 Point at a website
+            </button>
           </div>
 
           <form onSubmit={handleUpload}>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Title (e.g. Mindset: The New Psychology of Success)"
+              placeholder={mode === 'web' ? 'Title (optional - defaults to the URL)' : 'Title (e.g. Mindset: The New Psychology of Success)'}
               style={{ width: '100%', padding: 10, marginBottom: 10, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: 'inherit', boxSizing: 'border-box' }}
             />
             <input
@@ -139,14 +159,15 @@ export default function SteeringPage() {
               ))}
             </select>
 
-            {mode === 'upload' ? (
+            {mode === 'upload' && (
               <input
                 type="file"
                 accept="application/pdf"
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
                 style={{ width: '100%', marginBottom: 10 }}
               />
-            ) : (
+            )}
+            {mode === 'paste' && (
               <textarea
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
@@ -154,6 +175,21 @@ export default function SteeringPage() {
                 rows={8}
                 style={{ width: '100%', padding: 10, marginBottom: 10, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: 'inherit', boxSizing: 'border-box' }}
               />
+            )}
+            {mode === 'web' && (
+              <>
+                <input
+                  value={webUrl}
+                  onChange={(e) => setWebUrl(e.target.value)}
+                  placeholder="https://www.interventioncentral.org/"
+                  style={{ width: '100%', padding: 10, marginBottom: 10, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                />
+                <p style={{ fontSize: 12, color: C.muted, marginTop: -4, marginBottom: 10 }}>
+                  Fetches the page once and has Claude write a genuine summary of the concrete strategies
+                  it describes (paraphrased, with the source linked) — added to steering context like any
+                  other resource. Re-add later to refresh if the page changes.
+                </p>
+              </>
             )}
 
             <button
@@ -183,11 +219,16 @@ export default function SteeringPage() {
                 cat.docs.map((d) => (
                   <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderTop: `1px solid ${C.border}` }}>
                     <div>
-                      <div style={{ fontWeight: 600, color: C.navy }}>{d.title}</div>
+                      <div style={{ fontWeight: 600, color: C.navy }}>
+                        {d.source_type === 'web' && '🌐 '}{d.title}
+                      </div>
                       <div style={{ fontSize: 12, color: C.muted }}>
                         {d.author ? `${d.author} · ` : ''}
                         {d.num_pages ? `${d.num_pages} pages · ` : ''}
                         {d.char_count ? `${Math.round(d.char_count / 1000)}k characters` : ''}
+                        {d.source_url && (
+                          <> · <a href={d.source_url} target="_blank" rel="noreferrer" style={{ color: C.gold }}>source ↗</a></>
+                        )}
                       </div>
                     </div>
                     <button
@@ -206,3 +247,4 @@ export default function SteeringPage() {
     </div>
   )
 }
+
