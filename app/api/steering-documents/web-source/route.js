@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { sbInsert } from '../../../../lib/supabase'
-import { getCurrentUser } from '../../../../lib/session'
-import { DEFAULT_CATEGORY } from '../../../../lib/steering-categories'
+import { sbInsert } from '@/lib/supabase'
+import { getCurrentUser } from '@/lib/session'
+import { DEFAULT_CATEGORY } from '@/lib/steering-categories'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
