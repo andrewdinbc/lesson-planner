@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { STEERING_CATEGORIES } from '../../lib/steering-categories'
+import Tooltip from '../components/Tooltip'
 
 const C = { navy: '#1c3557', gold: '#b57c2a', green: '#1a7a3e', border: '#ddd4c2', bg: '#f2ede3', muted: '#8a7d6e' }
 
@@ -192,13 +193,15 @@ export default function SteeringPage() {
               </>
             )}
 
-            <button
-              type="submit"
-              disabled={uploading}
-              style={{ padding: '10px 20px', background: C.gold, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, opacity: uploading ? 0.6 : 1 }}
-            >
-              {uploading ? 'Processing…' : mode === 'upload' ? '+ Upload & Extract' : '+ Add Document'}
-            </button>
+            <Tooltip text="Saves this source to your steering library, sorted into the category above — it'll ground every future generation that uses that category." width={240}>
+              <button
+                type="submit"
+                disabled={uploading}
+                style={{ padding: '10px 20px', background: C.gold, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, opacity: uploading ? 0.6 : 1 }}
+              >
+                {uploading ? 'Processing…' : mode === 'upload' ? '+ Upload & Extract' : '+ Add Document'}
+              </button>
+            </Tooltip>
           </form>
         </div>
 
@@ -231,12 +234,14 @@ export default function SteeringPage() {
                         )}
                       </div>
                     </div>
-                    <button
-                      onClick={() => removeDoc(d.id)}
-                      style={{ padding: '4px 10px', background: '#fff', border: `1px solid ${C.border}`, borderRadius: 6, cursor: 'pointer', color: '#c0392b', fontSize: 12 }}
-                    >
-                      Remove
-                    </button>
+                    <Tooltip text="Removes this source from your steering library — future generations won't reference it anymore." width={220}>
+                      <button
+                        onClick={() => removeDoc(d.id)}
+                        style={{ padding: '4px 10px', background: '#fff', border: `1px solid ${C.border}`, borderRadius: 6, cursor: 'pointer', color: '#c0392b', fontSize: 12 }}
+                      >
+                        Remove
+                      </button>
+                    </Tooltip>
                   </div>
                 ))
               )}
@@ -247,4 +252,5 @@ export default function SteeringPage() {
     </div>
   )
 }
+
 

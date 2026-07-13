@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import Tooltip from '../components/Tooltip'
 
 const C = { navy: '#1c3557', gold: '#b57c2a', green: '#1a7a3e', border: '#ddd4c2', bg: '#f2ede3' }
 const TYPE_LABEL = { year: 'Year', month: 'Month', week: 'Week', day: 'Day', lesson: 'Lesson' }
@@ -97,21 +98,27 @@ function GenerateForm() {
 
             {error && <div style={{ background: '#fdecea', border: '1px solid #f5b7b1', borderRadius: 8, padding: 12, color: '#c0392b', marginBottom: 16 }}>{error}</div>}
 
-            <button type="submit" disabled={generating} style={{ padding: '12px 24px', background: C.gold, color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>
-              {generating ? 'Generating…' : `Generate ${TYPE_LABEL[type]} Plan`}
-            </button>
+            <Tooltip text="Generates this lesson/unit plan using your steering documents to ground it — takes a moment, nothing is saved until it finishes." width={240}>
+              <button type="submit" disabled={generating} style={{ padding: '12px 24px', background: C.gold, color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>
+                {generating ? 'Generating…' : `Generate ${TYPE_LABEL[type]} Plan`}
+              </button>
+            </Tooltip>
           </form>
         ) : (
           <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 24 }}>
             <h2 style={{ color: C.navy, marginTop: 0 }}>{result.title}</h2>
             <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>{result.content.markdown}</div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={exportTxt} style={{ padding: '10px 20px', background: C.navy, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
-                ⬇ Export .txt
-              </button>
-              <button onClick={() => router.push('/dashboard')} style={{ padding: '10px 20px', background: '#fff', border: `1px solid ${C.border}`, borderRadius: 6, cursor: 'pointer' }}>
-                Done — Back to Dashboard
-              </button>
+              <Tooltip text="Downloads this plan as a plain text file to your device.">
+                <button onClick={exportTxt} style={{ padding: '10px 20px', background: C.navy, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+                  ⬇ Export .txt
+                </button>
+              </Tooltip>
+              <Tooltip text="Returns to your dashboard — this plan stays saved either way.">
+                <button onClick={() => router.push('/dashboard')} style={{ padding: '10px 20px', background: '#fff', border: `1px solid ${C.border}`, borderRadius: 6, cursor: 'pointer' }}>
+                  Done — Back to Dashboard
+                </button>
+              </Tooltip>
             </div>
           </div>
         )}
@@ -127,3 +134,4 @@ export default function GeneratePage() {
     </Suspense>
   )
 }
+
