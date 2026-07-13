@@ -12,8 +12,27 @@ import { STEERING_CATEGORY_MAP, DEFAULT_CATEGORY } from '../../../../lib/steerin
 export const runtime = 'nodejs'
 export const maxDuration = 60 // large PDFs take longer than the default to parse
 
-export async function POST(request) {
+// Steering documents are Aj's own admin-only background context (see
+// app/steering/page.js and app/api/generate/route.js) - never a
+// teacher-facing feature. Two valid callers: Aj's own browser session
+// (checked against ADMIN_EMAIL), or Hyperion Command Centre uploading
+// server-to-server with STEERING_SYNC_SECRET, since Hyperion has no
+// lesson-planner login session to send.
+const ADMIN_EMAIL = 'andrewsinbc3@gmail.com'
+const ADMIN_USER_ID = '7844844f-f54f-43c1-ae44-94ec37e97778'
+
+async function requireAdmin(request) {
+  const syncSecret = request.headers.get('x-steering-sync-secret')
+  if (syncSecret && process.env.STEERING_SYNC_SECRET && syncSecret === process.env.STEERING_SYNC_SECRET) {
+    return { id: ADMIN_USER_ID, email: ADMIN_EMAIL }
+  }
   const user = await getCurrentUser()
+  if (user && user.email === ADMIN_EMAIL) return user
+  return null
+}
+
+export async function POST(request) {
+  const user = await requireAdmin(request)
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
 
   try {
@@ -76,3 +95,4 @@ export async function POST(request) {
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
