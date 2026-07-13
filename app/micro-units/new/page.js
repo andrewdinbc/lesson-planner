@@ -1,124 +1,261 @@
-// force redeploy 1783630089
-'use client'
-import { useState, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+'use client';
 
-const C = { navy: '#1c3557', gold: '#b57c2a', green: '#1a7a3e', border: '#ddd4c2', bg: '#f2ede3' }
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/utils/supabase/client';
+import Tooltip from '@/components/Tooltip';
 
-export default function NewMicroUnitPage() {
-  return (
-    <Suspense fallback={<div style={{ padding: 32, color: '#8a7d6e' }}>Loading…</div>}>
-      <NewMicroUnitForm />
-    </Suspense>
-  )
-}
+export default function NewMicroUnit() {
+  const router = useRouter();
+  const supabase = createClient();
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    grade_level: '9-12',
+    subject: 'General',
+    duration_hours: 1,
+    learning_objectives: '',
+    materials: '',
+    assessment_method: ''
+  });
 
-function NewMicroUnitForm() {
-  const params = useSearchParams()
-  const lessonPlanId = params.get('lessonPlanId')
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
 
-  const [title, setTitle] = useState('')
-  const [grade, setGrade] = useState('')
-  const [strand, setStrand] = useState('')
-  const [masteryPct, setMasteryPct] = useState(80)
-  const [randomizable, setRandomizable] = useState(true)
-  const [questionsText, setQuestionsText] = useState(
-    '[\n  { "prompt": "{a} + {b} = ?", "answer_formula": "a+b" }\n]'
-  )
-  const [rangesText, setRangesText] = useState(
-    '{\n  "a": { "min": 1, "max": 20 },\n  "b": { "min": 1, "max": 20 }\n}'
-  )
-  const [saving, setSaving] = useState(false)
-  const [result, setResult] = useState(null)
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setSaving(true)
-    setResult(null)
-    try {
-      const questions = JSON.parse(questionsText)
-      const randomizable_ranges = randomizable ? JSON.parse(rangesText) : undefined
-      const res = await fetch('/api/micro-units', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          grade,
-          strand,
-          defaultMasteryPct: Number(masteryPct),
-          randomizable,
-          lessonPlannerRef: lessonPlanId,
-          questionTemplate: { questions, randomizable_ranges },
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Save failed')
-      setResult({ ok: true, microUnit: data.microUnit })
-    } catch (err) {
-      setResult({ ok: false, error: err.message })
+    const { data, error } = await supabase
+      .from('micro_units')
+      .insert([formData])
+      .select();
+
+    setLoading(false);
+
+    if (!error && data) {
+      router.push(`/micro-units/${data[0].id}`);
+    } else {
+      alert('Error creating micro-unit');
     }
-    setSaving(false)
-  }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!formData.title.trim()) {
+      alert('Please enter a title');
+      return;
+    }
+
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('micro_units')
+      .insert([{ ...formData, status: 'draft' }])
+      .select();
+
+    setLoading(false);
+
+    if (!error && data) {
+      router.push(`/micro-units/${data[0].id}`);
+    }
+  };
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'Georgia, serif', padding: 32 }}>
-      <div style={{ maxWidth: 640, margin: '0 auto' }}>
-        <h1 style={{ color: C.navy, fontSize: 24 }}>New Math Micro-Unit</h1>
-        <p style={{ color: '#8a7d6e', fontSize: 13, marginBottom: 20 }}>
-          Sends to Mastery Studio (self-paced, mastery-gated math practice) — this lesson stays linked as its origin.
-        </p>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 p-8">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Create Micro-Unit</h1>
+          <p className="text-slate-600">Design a focused learning experience</p>
+        </div>
 
-        <form onSubmit={handleSubmit} style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <label>
-            Title
-            <input value={title} onChange={(e) => setTitle(e.target.value)} required style={inputStyle} />
-          </label>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <label style={{ flex: 1 }}>
-              Grade
-              <input value={grade} onChange={(e) => setGrade(e.target.value)} style={inputStyle} />
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-8 
+          border border-slate-200">
+          
+          {/* Title Field */}
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-slate-900 mb-2">
+              Unit Title
             </label>
-            <label style={{ flex: 1 }}>
-              Strand
-              <input value={strand} onChange={(e) => setStrand(e.target.value)} placeholder="e.g. algebra" style={inputStyle} />
-            </label>
-            <label style={{ flex: 1 }}>
-              Default Mastery %
-              <input type="number" min="0" max="100" value={masteryPct} onChange={(e) => setMasteryPct(e.target.value)} style={inputStyle} />
-            </label>
+            <input
+              type="text"
+              name="title"
+              value={formData.title}
+              onChange={handleChange}
+              required
+              placeholder="e.g., Photosynthesis Basics"
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg 
+                focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
           </div>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input type="checkbox" checked={randomizable} onChange={(e) => setRandomizable(e.target.checked)} />
-            Randomizable (each student gets different numbers, same structure)
-          </label>
-
-          <label>
-            Questions (JSON array — use {'{variableName}'} for placeholders)
-            <textarea value={questionsText} onChange={(e) => setQuestionsText(e.target.value)} rows={6} style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 12 }} />
-          </label>
-
-          {randomizable && (
-            <label>
-              Variable Ranges (JSON)
-              <textarea value={rangesText} onChange={(e) => setRangesText(e.target.value)} rows={4} style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 12 }} />
+          {/* Description Field */}
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-slate-900 mb-2">
+              Description
             </label>
-          )}
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              rows="4"
+              placeholder="Brief overview of what students will learn..."
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg 
+                focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            />
+          </div>
 
-          <button type="submit" disabled={saving} style={{ padding: '10px 0', background: C.gold, color: '#fff', border: 'none', borderRadius: 6, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
-            {saving ? 'Saving…' : 'Create Micro-Unit in Mastery Studio'}
-          </button>
+          {/* Grade & Subject Row */}
+          <div className="grid grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className="block text-sm font-semibold text-slate-900 mb-2">
+                Grade Level
+              </label>
+              <select
+                name="grade_level"
+                value={formData.grade_level}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg 
+                  focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option>K-2</option>
+                <option>3-5</option>
+                <option>6-8</option>
+                <option>9-12</option>
+                <option>Post-Secondary</option>
+              </select>
+            </div>
 
-          {result && result.ok && (
-            <div style={{ color: C.green, fontSize: 13 }}>✓ Created — visible in Mastery Studio's teacher dashboard.</div>
-          )}
-          {result && !result.ok && (
-            <div style={{ color: '#b03a2e', fontSize: 13 }}>⚠️ {result.error}</div>
-          )}
+            <div>
+              <label className="block text-sm font-semibold text-slate-900 mb-2">
+                Subject
+              </label>
+              <select
+                name="subject"
+                value={formData.subject}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg 
+                  focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option>General</option>
+                <option>Math</option>
+                <option>Science</option>
+                <option>ELA</option>
+                <option>Social Studies</option>
+                <option>Physical Education</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Duration Field */}
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-slate-900 mb-2">
+              Duration (hours)
+            </label>
+            <input
+              type="number"
+              name="duration_hours"
+              value={formData.duration_hours}
+              onChange={handleChange}
+              min="0.5"
+              step="0.5"
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg 
+                focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          {/* Learning Objectives */}
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-slate-900 mb-2">
+              Learning Objectives
+            </label>
+            <textarea
+              name="learning_objectives"
+              value={formData.learning_objectives}
+              onChange={handleChange}
+              rows="3"
+              placeholder="What students should be able to do after this unit..."
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg 
+                focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            />
+          </div>
+
+          {/* Materials Field */}
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-slate-900 mb-2">
+              Required Materials
+            </label>
+            <textarea
+              name="materials"
+              value={formData.materials}
+              onChange={handleChange}
+              rows="3"
+              placeholder="List all materials and resources needed..."
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg 
+                focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            />
+          </div>
+
+          {/* Assessment Method */}
+          <div className="mb-8">
+            <label className="block text-sm font-semibold text-slate-900 mb-2">
+              Assessment Method
+            </label>
+            <textarea
+              name="assessment_method"
+              value={formData.assessment_method}
+              onChange={handleChange}
+              rows="3"
+              placeholder="How will you assess student understanding?..."
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg 
+                focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-4 pt-6 border-t border-slate-200">
+            {/* Save as Draft Button */}
+            <Tooltip text="Save incomplete unit to finish later" position="top">
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                disabled={loading}
+                className="px-6 py-3 bg-slate-500 hover:bg-slate-600 text-white rounded-lg 
+                  font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Saving...' : 'Save as Draft'}
+              </button>
+            </Tooltip>
+
+            {/* Cancel Button */}
+            <Tooltip text="Return to dashboard without saving" position="top">
+              <button
+                type="button"
+                onClick={() => router.push('/dashboard')}
+                className="px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-900 rounded-lg 
+                  font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </Tooltip>
+
+            {/* Publish Button */}
+            <Tooltip text="Create and publish this micro-unit" position="top">
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg 
+                  font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Creating...' : 'Create & Publish'}
+              </button>
+            </Tooltip>
+          </div>
         </form>
       </div>
     </div>
-  )
+  );
 }
-
-const inputStyle = { width: '100%', padding: '8px 10px', border: '1px solid #ddd4c2', borderRadius: 6, marginTop: 4, fontFamily: 'inherit', boxSizing: 'border-box' }

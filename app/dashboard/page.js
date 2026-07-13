@@ -1,94 +1,159 @@
-'use client'
-import { useState, useEffect } from 'react'
+'use client';
 
-const C = { navy: '#1c3557', gold: '#b57c2a', green: '#1a7a3e', border: '#ddd4c2', bg: '#f2ede3' }
-const NEXT_TYPE = { year: 'month', month: 'week', week: 'day', day: 'lesson' }
-const TYPE_LABEL = { year: 'Year', month: 'Month', week: 'Week', day: 'Day', lesson: 'Lesson' }
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { createClient } from '@/utils/supabase/client';
+import Tooltip from '@/components/Tooltip';
 
-function PlanNode({ plan, depth }) {
-  const [expanded, setExpanded] = useState(false)
-  const [children, setChildren] = useState(null)
-
-  async function toggle() {
-    if (!expanded && children === null) {
-      const res = await fetch(`/api/plans?parentId=${plan.id}`)
-      const d = await res.json()
-      setChildren(d.plans || [])
-    }
-    setExpanded((e) => !e)
-  }
-
-  const canHaveChildren = NEXT_TYPE[plan.type]
-
-  return (
-    <div style={{ marginLeft: depth * 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: `1px solid ${C.border}` }}>
-        {canHaveChildren ? (
-          <button onClick={toggle} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: C.navy }}>
-            {expanded ? '▼' : '▶'}
-          </button>
-        ) : <span style={{ width: 14 }} />}
-        <span style={{ fontSize: 11, background: C.gold, color: '#fff', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>{TYPE_LABEL[plan.type]}</span>
-        <span style={{ fontWeight: plan.type === 'year' ? 700 : 400 }}>{plan.title}</span>
-        {canHaveChildren && (
-          <a href={`/generate?type=${canHaveChildren}&parentId=${plan.id}`} style={{ marginLeft: 'auto', fontSize: 12, color: C.green }}>
-            + Add {TYPE_LABEL[canHaveChildren]}
-          </a>
-        )}
-        {plan.type === 'lesson' && (
-          <a href={`/micro-units/new?lessonPlanId=${plan.id}`} style={{ marginLeft: canHaveChildren ? 10 : 'auto', fontSize: 12, color: C.gold }}>
-            + Math Unit
-          </a>
-        )}
-      </div>
-      {expanded && children && children.length === 0 && (
-        <div style={{ marginLeft: 34, padding: '6px 0', color: '#8a7d6e', fontSize: 13, fontStyle: 'italic' }}>
-          No {TYPE_LABEL[canHaveChildren].toLowerCase()} plans yet.
-        </div>
-      )}
-      {expanded && children && children.map((c) => <PlanNode key={c.id} plan={c} depth={depth + 1} />)}
-    </div>
-  )
-}
-
-export default function DashboardPage() {
-  const [years, setYears] = useState([])
-  const [loading, setLoading] = useState(true)
+export default function Dashboard() {
+  const [units, setUnits] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
 
   useEffect(() => {
-    fetch('/api/plans')
-      .then((res) => {
-        if (res.status === 401) { window.location.href = '/login'; throw new Error('redirect') }
-        return res.json()
-      })
-      .then((d) => setYears(d.plans || []))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
+    const fetchUnits = async () => {
+      const { data, error } = await supabase
+        .from('micro_units')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error) setUnits(data);
+      setLoading(false);
+    };
+
+    fetchUnits();
+  }, []);
+
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this micro-unit?')) return;
+    
+    const { error } = await supabase
+      .from('micro_units')
+      .delete()
+      .eq('id', id);
+
+    if (!error) {
+      setUnits(units.filter(u => u.id !== id));
+    }
+  };
+
+  const handleDuplicate = async (unit) => {
+    const newUnit = { ...unit };
+    delete newUnit.id;
+    
+    const { data, error } = await supabase
+      .from('micro_units')
+      .insert([newUnit])
+      .select();
+
+    if (!error && data) {
+      setUnits([data[0], ...units]);
+    }
+  };
+
+  if (loading) return <div className="p-8">Loading...</div>;
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'Georgia, serif', padding: 32 }}>
-      <div style={{ maxWidth: 800, margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h1 style={{ color: C.navy, fontSize: 28, margin: 0 }}>Your Plans</h1>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <a href="/steering" style={{ padding: '8px 14px', border: `1px solid ${C.border}`, borderRadius: 6, color: C.navy, fontSize: 13 }}>📄 Steering Documents</a>
-            <a href="/generate?type=year" style={{ padding: '8px 14px', background: C.gold, color: '#fff', borderRadius: 6, fontSize: 13, fontWeight: 600 }}>+ New Year Plan</a>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 p-8">
+      <div className="max-w-6xl mx-auto">
+        {/* Header Section */}
+        <div className="flex justify-between items-center mb-12">
+          <div>
+            <h1 className="text-4xl font-bold text-slate-900 mb-2">Dashboard</h1>
+            <p className="text-slate-600">Manage your micro-units</p>
           </div>
+          
+          <Tooltip text="Create a new micro-unit from scratch" position="left">
+            <Link
+              href="/micro-units/new"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg 
+                font-medium transition-colors shadow-md hover:shadow-lg"
+            >
+              + New Micro-Unit
+            </Link>
+          </Tooltip>
         </div>
 
-        <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 16 }}>
-          {loading ? (
-            <div style={{ color: '#8a7d6e' }}>Loading…</div>
-          ) : years.length === 0 ? (
-            <div style={{ color: '#8a7d6e', fontStyle: 'italic', padding: 12 }}>
-              No plans yet. Start with a Year Plan, then drill down to months, weeks, days, and individual lessons.
+        {/* Units Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {units.length === 0 ? (
+            <div className="col-span-full text-center py-12">
+              <p className="text-slate-500 text-lg mb-4">No micro-units yet</p>
+              <Tooltip text="Start creating your first lesson unit" position="top">
+                <Link
+                  href="/micro-units/new"
+                  className="inline-block bg-blue-600 hover:bg-blue-700 text-white 
+                    px-6 py-3 rounded-lg font-medium transition-colors"
+                >
+                  Create First Unit
+                </Link>
+              </Tooltip>
             </div>
           ) : (
-            years.map((y) => <PlanNode key={y.id} plan={y} depth={0} />)
+            units.map(unit => (
+              <div key={unit.id} className="bg-white rounded-lg shadow-md hover:shadow-lg 
+                transition-shadow overflow-hidden border border-slate-200">
+                
+                {/* Unit Header */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 border-b 
+                  border-slate-200">
+                  <h3 className="font-semibold text-slate-900 text-lg truncate">
+                    {unit.title}
+                  </h3>
+                  <p className="text-sm text-slate-600 mt-1">{unit.grade_level}</p>
+                </div>
+
+                {/* Unit Content */}
+                <div className="p-4">
+                  <p className="text-sm text-slate-600 line-clamp-3 mb-4">
+                    {unit.description}
+                  </p>
+                  <div className="flex gap-2">
+                    {/* View/Edit Button */}
+                    <Tooltip text="View and edit unit details" position="top">
+                      <Link
+                        href={`/micro-units/${unit.id}`}
+                        className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 
+                          rounded text-sm font-medium transition-colors text-center"
+                      >
+                        View
+                      </Link>
+                    </Tooltip>
+
+                    {/* Duplicate Button */}
+                    <Tooltip text="Create a copy of this unit" position="top">
+                      <button
+                        onClick={() => handleDuplicate(unit)}
+                        className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 
+                          rounded text-sm font-medium transition-colors"
+                      >
+                        Duplicate
+                      </button>
+                    </Tooltip>
+
+                    {/* Delete Button */}
+                    <Tooltip text="Permanently delete this unit" position="top">
+                      <button
+                        onClick={() => handleDelete(unit.id)}
+                        className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 
+                          rounded text-sm font-medium transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </Tooltip>
+                  </div>
+                </div>
+
+                {/* Unit Metadata */}
+                <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 text-xs 
+                  text-slate-500">
+                  <p>Created: {new Date(unit.created_at).toLocaleDateString()}</p>
+                </div>
+              </div>
+            ))
           )}
         </div>
       </div>
     </div>
-  )
+  );
 }

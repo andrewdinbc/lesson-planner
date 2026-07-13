@@ -1,31 +1,32 @@
-'use client'
-import { useState } from 'react'
+import React, { useState } from 'react';
 
-const C = { navy: '#1c3557' }
+export default function Tooltip({ children, text, position = 'top' }) {
+  const [visible, setVisible] = useState(false);
 
-export default function Tooltip({ text, children, width = 220 }) {
-  const [show, setShow] = useState(false)
+  const positionClasses = {
+    top: 'bottom-full mb-2',
+    bottom: 'top-full mt-2',
+    left: 'right-full mr-2',
+    right: 'left-full ml-2'
+  };
+
   return (
-    <span
-      style={{ position: 'relative', display: 'inline-block' }}
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}
-    >
-      {children}
-      {show && (
-        <span style={{
-          position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
-          marginBottom: 8, width, padding: '8px 10px', background: C.navy, color: '#fff',
-          borderRadius: 6, fontSize: 12, lineHeight: 1.4,
-          zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.2)', pointerEvents: 'none',
-        }}>
+    <div className="relative inline-block group">
+      <div
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+      >
+        {children}
+      </div>
+      {visible && (
+        <div
+          className={`absolute ${positionClasses[position]} left-1/2 -translate-x-1/2 
+            bg-gray-900 text-white text-xs rounded px-3 py-2 whitespace-nowrap z-50
+            pointer-events-none`}
+        >
           {text}
-          <span style={{
-            position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
-            borderWidth: '5px', borderStyle: 'solid', borderColor: `${C.navy} transparent transparent transparent`,
-          }} />
-        </span>
+        </div>
       )}
-    </span>
-  )
+    </div>
+  );
 }
