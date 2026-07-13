@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { STEERING_CATEGORIES } from '../../lib/steering-categories'
-import Tooltip from '../components/Tooltip'
+import Tooltip from '@/components/Tooltip'
 
 const C = { navy: '#1c3557', gold: '#b57c2a', green: '#1a7a3e', border: '#ddd4c2', bg: '#f2ede3', muted: '#8a7d6e' }
 
@@ -252,5 +252,6 @@ export default function SteeringPage() {
     </div>
   )
 }
+
 
 
