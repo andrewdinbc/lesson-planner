@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import Tooltip from '../components/Tooltip'
+import Tooltip from '@/components/Tooltip'
 
 const C = { navy: '#1c3557', gold: '#b57c2a', green: '#1a7a3e', border: '#ddd4c2', bg: '#f2ede3' }
 const TYPE_LABEL = { year: 'Year', month: 'Month', week: 'Week', day: 'Day', lesson: 'Lesson' }
@@ -134,4 +134,5 @@ export default function GeneratePage() {
     </Suspense>
   )
 }
+
 
