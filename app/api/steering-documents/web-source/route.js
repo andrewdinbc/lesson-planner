@@ -11,8 +11,21 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 // genuine, substantial paraphrased synthesis of the concrete strategies/
 // frameworks present, with clear source attribution. Re-fetchable later
 // via the same endpoint if the teacher wants a refresh.
-export async function POST(request) {
+const ADMIN_EMAIL = 'andrewsinbc3@gmail.com'
+const ADMIN_USER_ID = '7844844f-f54f-43c1-ae44-94ec37e97778'
+
+async function requireAdmin(request) {
+  const syncSecret = request.headers.get('x-steering-sync-secret')
+  if (syncSecret && process.env.STEERING_SYNC_SECRET && syncSecret === process.env.STEERING_SYNC_SECRET) {
+    return { id: ADMIN_USER_ID, email: ADMIN_EMAIL }
+  }
   const user = await getCurrentUser()
+  if (user && user.email === ADMIN_EMAIL) return user
+  return null
+}
+
+export async function POST(request) {
+  const user = await requireAdmin(request)
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
 
   try {
@@ -71,3 +84,4 @@ ${pageText}`
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
