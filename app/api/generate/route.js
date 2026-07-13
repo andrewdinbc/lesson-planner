@@ -37,10 +37,13 @@ export async function POST(request) {
     // the old flat 8000-char cap so the author's actual approach comes
     // through - a combined ceiling across all selected docs still guards
     // against blowing the prompt budget when several are selected at once.
+    // Steering documents are global background context set by Aj — they
+    // ground every generation for every account automatically. Teachers
+    // never see or pick these; there is no per-user scoping and no
+    // steeringDocIds selection step.
     let steeringContext = ''
-    if (steeringDocIds && steeringDocIds.length) {
-      const idList = steeringDocIds.map((id) => `id.eq.${id}`).join(',')
-      const docs = await sbSelect('steering_documents', `?user_id=eq.${user.id}&or=(${idList})&select=title,author,category,full_text`)
+    {
+      const docs = await sbSelect('steering_documents', `?select=title,author,category,full_text`)
 
       if (docs.length) {
         const PER_DOC_MAX = 45000
@@ -115,4 +118,5 @@ Return the plan content as clean, well-structured Markdown suitable for direct d
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
 
