@@ -249,6 +249,7 @@ export default function InventoriesPage() {
           grades,
           knows_report_card_dates: knowsReportCards === true,
           report_card_dates: knowsReportCards === true ? reportCardDates : null,
+          calendar_summary: calendarSummary || null,
           time_distribution: timeDist,
           curriculum_model: selectedModel,
           curriculum_scores: curriculumFit?.scores || null,
@@ -726,6 +727,7 @@ export default function InventoriesPage() {
     </div>
   )
 }
+
 
 
 
