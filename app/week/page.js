@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import Tooltip from '@/components/Tooltip'
 
-const C = { navy: '#1c3557', gold: '#b57c2a', green: '#1a7a3e', border: '#ddd4c2', bg: '#f2ede3' }
+import { COLORS as C, FONT_BODY } from '@/lib/theme'
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
 
 export default function WeekPage() {
@@ -133,10 +133,10 @@ export default function WeekPage() {
     })
   }
 
-  if (loading) return <div style={{ padding: 32, fontFamily: 'Georgia, serif' }}>Loading…</div>
+  if (loading) return <div style={{ padding: 32, fontFamily: FONT_BODY }}>Loading…</div>
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'Georgia, serif', padding: 32 }}>
+    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: FONT_BODY, padding: 32 }}>
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
         <a href="/dashboard" style={{ color: C.navy, fontSize: 13 }}>← Dashboard</a>
         <h1 style={{ color: C.navy, fontSize: 28, margin: '8px 0 20px' }}>Weekly Schedule Builder</h1>
