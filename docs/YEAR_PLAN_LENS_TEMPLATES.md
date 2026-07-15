@@ -85,3 +85,35 @@ The lens changes *how content is grouped, framed, and time-weighted* — not *wh
 ## Relationship to existing specs
 - Currently `MODEL_TO_FOCUS` in `lib/bc-curriculum.js` maps each of the 9 curriculum models down to 3 buckets (big_ideas/content/competency) purely for *which BC curriculum section to emphasize in the AI generation prompt*. This lens-template concept is a bigger ask: the **Year/Month/Week/Day scaffolding itself** should visibly reorganize around the chosen lens, with teacher-adjustable % weighting per period, not just bias which curriculum text gets pulled in.
 - Status: **spec only, not yet built.** Sequencing: Year Plan (this) → Weekly Schedule Builder → mismatch resolution.
+
+## Month-by-month breakdowns (Grade 7 BC example, captured 2026-07-15)
+Filtered to the 9 built lenses only (dropped Big Ideas, Content, FPPL, and Interdisciplinary as separate month-by-months, matching the same exclusions as the Year Structure section above).
+
+### Skills-Based / Competency-Based
+Sept Inquiry & Questioning · Oct Planning & Conducting Investigations · Nov Analyzing & Interpreting · Dec Communicating · Jan–Feb Applying & Innovating (incl. engineering challenges) · Mar Critical & Reflective Thinking · Apr Personal & Social Competencies · May Synthesis Competencies · Jun Competency Showcase (portfolio + mastery demonstrations)
+
+### Integrated / Interdisciplinary (`theme_integrated`, using "Theme-Based" months)
+Sept–Oct Power (government, energy, social power, ecosystems, technology) · Nov–Dec Change (civilizations, climate, scientific/technological change) · Jan–Feb Systems (ecosystems, human systems, mechanical/math systems) · Mar–Apr Identity (culture, worldview, literature, personal/community identity) · May Theme Integration (cross-theme projects) · Jun Exhibition
+
+### Project-Based Learning (PBL)
+Sept–Oct Sustainable City Project (urban planning, ecosystems, energy) · Nov Museum Exhibit Project (ancient civilizations, artifacts, storytelling) · Dec–Jan Documentary Project (global issues, research, media literacy) · Feb–Mar Engineering Project (forces, simple machines, prototyping) · Apr Community Action Project (local issues, advocacy) · May Innovation Project (student-chosen design challenge) · Jun Exhibition (public presentation)
+
+### Inquiry-Based
+Sept Who am I in my community? · Oct–Nov How do systems shape life? (ecosystems, human systems, energy flow) · Dec–Jan How does energy move? (heat, energy transfer, forces, machines) · Feb–Mar How are we connected globally? (trade, migration, climate, sustainability) · Apr Student-generated inquiries · May Inquiry synthesis (cross-subject) · Jun Inquiry showcase
+
+### Place-Based
+Sept Local Watershed (mapping, water systems) · Oct Local Ecosystems (plants, animals, food webs) · Nov Local First Nations Knowledge (storywork, land relationships) · Dec–Jan Local Industry (forestry, fishing, tourism, global trade) · Feb Local Climate & Weather · Mar Local Energy Systems (hydro, solar, wind) · Apr Local Community Action (stewardship project) · May Local History (archaeology, settlement) · Jun Community Exhibition
+
+### Spiral
+Sept Ecosystem Basics (food chains, energy flow) · Oct Human Systems (cells, organs) · Nov Global Systems (climate, trade) · Dec Fractions Review · Jan Algebra Basics · Feb Geometry Basics · Mar Narrative Writing · Apr Informational Writing · May Persuasive Writing · Jun Spiral Review (all spirals revisited)
+
+### Mastery / Competency-Based Progressions
+Sept Inquiry Mastery · Oct Communication Mastery · Nov Numeracy Mastery I (fractions, ratios) · Dec Numeracy Mastery II (algebra basics) · Jan Scientific Reasoning Mastery I (variables, data) · Feb Scientific Reasoning Mastery II (analysis, conclusions) · Mar Social Reasoning Mastery (bias, evidence) · Apr Personal/Social Mastery · May Mastery Projects (student-chosen) · Jun Mastery Showcase (portfolio)
+
+### Subject-Centered
+Sept Math + ELA Foundations (fractions, reading strategies) · Oct Social Studies Block (ancient civilizations) · Nov Science Block I (cells, systems) · Dec ELA Writing Block (narrative + informational) · Jan Math Block II (algebra, geometry) · Feb Science Block II (heat, energy) · Mar Science Block III (forces, machines) · Apr Social Studies Block II (global issues) · May ADST + Arts Block (coding, design, expression) · Jun PHE + Review
+
+### Standards-Based
+No month-by-month example given yet — the Year Structure draft (5 periods × 20%) above still needs a matching month breakdown before this lens is complete. Flagged as outstanding, same as the % breakdown was.
+
+_Status: raw month-by-month capture only, not yet reconciled with the open questions below._
