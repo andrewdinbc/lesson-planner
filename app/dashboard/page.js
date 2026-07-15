@@ -3,11 +3,33 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import Tooltip from '@/components/Tooltip'
+import { COLORS as C, FONT_BODY, FONT_BRAND } from '@/lib/theme'
 
-// NOTE: inline styles throughout, matching the rest of this codebase
-// (Header.jsx, app/units, app/week, app/year-plan). Tailwind is NOT
-// installed in this project.
-const C = { navy: '#1c3557', gold: '#b57c2a', green: '#1a7a3e', border: '#ddd4c2', bg: '#f2ede3' }
+// Layout mirrors Student Portfolio's /teacher dashboard (sidebar + action
+// cards) so the two apps read as one ecosystem -- same structure, same
+// exact color tokens, same fonts (see lib/theme.js).
+
+function ActionCard({ href, emoji, title, desc, tooltip }) {
+  const card = (
+    <Link href={href} style={{
+      display: 'flex', alignItems: 'center', gap: 16, background: C.card, border: `1px solid ${C.border}`,
+      borderRadius: 12, padding: 20, textDecoration: 'none', flex: 1, minWidth: 260,
+    }}>
+      <div style={{
+        width: 44, height: 44, borderRadius: 10, background: C.bg, display: 'flex',
+        alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0,
+      }}>
+        {emoji}
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 700, color: '#1a1a1a', fontSize: 16, marginBottom: 3 }}>{title}</div>
+        <div style={{ fontSize: 13, color: '#888' }}>{desc}</div>
+      </div>
+      <span style={{ color: '#bbb', fontSize: 18 }}>›</span>
+    </Link>
+  )
+  return tooltip ? <Tooltip text={tooltip} position="top">{card}</Tooltip> : card
+}
 
 export default function Dashboard() {
   const [units, setUnits] = useState([])
@@ -39,56 +61,59 @@ export default function Dashboard() {
     if (!error && data) setUnits([data[0], ...units])
   }
 
-  if (loading) {
-    return <div style={{ padding: 32, fontFamily: 'Georgia, serif', color: '#666' }}>Loading…</div>
-  }
-
-  const cardBtn = {
-    background: '#fff', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 16px',
-    fontSize: 13, fontWeight: 600, color: C.navy, textDecoration: 'none', display: 'inline-block',
-  }
   const actionBtn = (bg) => ({
     background: bg, color: '#fff', padding: '8px 0', borderRadius: 6, fontSize: 13, fontWeight: 600,
     textAlign: 'center', textDecoration: 'none', border: 'none', cursor: 'pointer', flex: 1,
   })
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'Georgia, serif', padding: 32 }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-        <Tooltip text="4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach." position="bottom">
-          <Link href="/inventories" style={{
-            display: 'block', marginBottom: 24, background: '#fff', border: `1px solid ${C.border}`,
-            borderRadius: 10, padding: 18, textDecoration: 'none',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontWeight: 700, color: C.navy, fontSize: 15 }}>📋 Tell us about your teaching style</div>
-                <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-                  4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach.
-                </div>
-              </div>
-              <span style={{ color: C.gold, fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', marginLeft: 16 }}>Start →</span>
-            </div>
-          </Link>
-        </Tooltip>
+    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: FONT_BODY, display: 'flex' }}>
+      {/* Sidebar -- same structure/width as Student Portfolio's /teacher sidebar */}
+      <div style={{ width: 240, background: C.card, borderRight: `1px solid ${C.border}`, padding: 24, flexShrink: 0 }}>
+        <div style={{ fontFamily: FONT_BRAND, fontWeight: 700, color: C.navy, fontSize: 18, marginBottom: 28 }}>
+          chalk<span style={{ color: C.gold }}>&circuit</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <span style={{ fontWeight: 700, fontSize: 14, color: '#1a1a1a' }}>Micro-Units</span>
+          <Link href="/micro-units/new" title="Create a new micro-unit" style={{ color: C.navy, textDecoration: 'none', fontSize: 18, fontWeight: 700 }}>+</Link>
+        </div>
+        {loading ? (
+          <div style={{ fontSize: 13, color: '#999' }}>Loading…</div>
+        ) : units.length === 0 ? (
+          <div style={{ fontSize: 13, color: '#999' }}>No micro-units yet</div>
+        ) : (
+          units.slice(0, 8).map((u) => (
+            <Link key={u.id} href={`/micro-units/${u.id}`} title={u.title} style={{
+              display: 'block', padding: '8px 10px', borderRadius: 8, fontSize: 13, marginBottom: 4,
+              color: '#555', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {u.title}
+            </Link>
+          ))
+        )}
+      </div>
 
-        <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
-          <Tooltip text="Set your Year Structure lens and how much time each period gets" position="top">
-            <Link href="/year-plan" style={cardBtn}>🗓️ Year Plan</Link>
-          </Tooltip>
-          <Tooltip text="Set priority weighting for each unit within a subject" position="top">
-            <Link href="/units" style={cardBtn}>🎯 Unit Priorities</Link>
-          </Tooltip>
-          <Tooltip text="Build your weekly class schedule with fixed blocks" position="top">
-            <Link href="/week" style={cardBtn}>📅 Weekly Schedule</Link>
-          </Tooltip>
+      {/* Main */}
+      <div style={{ flex: 1, padding: 40, maxWidth: 1100 }}>
+        <ActionCard href="/inventories" emoji="📋" title="Tell us about your teaching style"
+          desc="4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach"
+          tooltip="4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach." />
+
+        <h1 style={{ fontSize: 24, color: C.navy, margin: '28px 0 20px' }}>Plan your year</h1>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 40 }}>
+          <ActionCard href="/year-plan" emoji="🗓️" title="Year Plan"
+            desc="Set your Year Structure lens and how much time each period gets"
+            tooltip="Set your Year Structure lens and how much time each period gets" />
+          <ActionCard href="/units" emoji="🎯" title="Unit Priorities"
+            desc="Set priority weighting for each unit within a subject"
+            tooltip="Set priority weighting for each unit within a subject" />
+          <ActionCard href="/week" emoji="📅" title="Weekly Schedule"
+            desc="Build your weekly class schedule with fixed blocks"
+            tooltip="Build your weekly class schedule with fixed blocks" />
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
-          <div>
-            <h1 style={{ color: C.navy, fontSize: 30, margin: '0 0 4px' }}>Dashboard</h1>
-            <p style={{ color: '#666', fontSize: 14, margin: 0 }}>Manage your micro-units</p>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h2 style={{ fontSize: 22, color: C.navy, margin: 0 }}>Micro-Units</h2>
           <Tooltip text="Create a new micro-unit from scratch" position="left">
             <Link href="/micro-units/new" style={{
               background: C.gold, color: '#fff', padding: '10px 22px', borderRadius: 6,
@@ -99,23 +124,27 @@ export default function Dashboard() {
           </Tooltip>
         </div>
 
-        {units.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '48px 0' }}>
-            <p style={{ color: '#888', fontSize: 16, marginBottom: 16 }}>No micro-units yet</p>
-            <Tooltip text="Start creating your first lesson unit" position="top">
-              <Link href="/micro-units/new" style={{
-                display: 'inline-block', background: C.gold, color: '#fff', padding: '10px 22px',
-                borderRadius: 6, fontWeight: 600, textDecoration: 'none', fontSize: 14,
-              }}>
-                Create First Unit
-              </Link>
-            </Tooltip>
+        {loading ? (
+          <div style={{ color: '#999', padding: 20 }}>Loading…</div>
+        ) : units.length === 0 ? (
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 32, textAlign: 'center', color: '#888' }}>
+            No micro-units yet.
+            <div style={{ marginTop: 16 }}>
+              <Tooltip text="Start creating your first lesson unit" position="top">
+                <Link href="/micro-units/new" style={{
+                  display: 'inline-block', background: C.gold, color: '#fff', padding: '10px 22px',
+                  borderRadius: 6, fontWeight: 600, textDecoration: 'none', fontSize: 14,
+                }}>
+                  Create First Unit
+                </Link>
+              </Tooltip>
+            </div>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
             {units.map((unit) => (
               <div key={unit.id} style={{
-                background: '#fff', borderRadius: 10, border: `1px solid ${C.border}`, overflow: 'hidden',
+                background: C.card, borderRadius: 10, border: `1px solid ${C.border}`, overflow: 'hidden',
               }}>
                 <div style={{ background: C.bg, padding: 14, borderBottom: `1px solid ${C.border}` }}>
                   <h3 style={{ color: C.navy, fontSize: 16, margin: 0, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -138,7 +167,7 @@ export default function Dashboard() {
                       <button onClick={() => handleDuplicate(unit)} style={actionBtn(C.green)}>Duplicate</button>
                     </Tooltip>
                     <Tooltip text="Permanently delete this unit" position="top">
-                      <button onClick={() => handleDelete(unit.id)} style={actionBtn('#a33')}>Delete</button>
+                      <button onClick={() => handleDelete(unit.id)} style={actionBtn(C.red)}>Delete</button>
                     </Tooltip>
                   </div>
                 </div>
