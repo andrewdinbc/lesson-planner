@@ -1,5 +1,5 @@
-import { sbSelect, sbInsert, sbUpdate } from '../../../lib/supabase'
-import { getCurrentUser } from '../../../lib/session'
+import { sbSelect, sbInsert, sbUpdate } from '@/lib/supabase'
+import { getCurrentUser } from '@/lib/session'
 
 export async function GET() {
   const user = await getCurrentUser()
