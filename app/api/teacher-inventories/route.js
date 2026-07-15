@@ -34,6 +34,7 @@ export async function POST(request) {
       wieman_scores: body.wieman_scores || null,
       fte_percentage: body.fte_percentage || null,
       subjects: body.subjects || null,
+      grades: body.grades || null,
       time_distribution: body.time_distribution || null,
       completed_at: body.skipped ? null : new Date().toISOString(),
     }
