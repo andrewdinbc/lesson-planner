@@ -56,6 +56,19 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 p-8">
       <div className="max-w-6xl mx-auto">
+        {/* Teacher Inventories entry point - one of the first things a
+            teacher can do, per Aj's request. Skippable, so this is a
+            visible invite rather than a forced gate. */}
+        <Link href="/inventories" className="block mb-8 bg-white border border-slate-200 rounded-lg p-5 hover:border-blue-400 transition-colors shadow-sm">
+          <div className="flex justify-between items-center">
+            <div>
+              <div className="font-semibold text-slate-900">📋 Tell us about your teaching style</div>
+              <div className="text-sm text-slate-600 mt-1">4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach.</div>
+            </div>
+            <span className="text-blue-600 font-medium text-sm whitespace-nowrap ml-4">Start &rarr;</span>
+          </div>
+        </Link>
+
         {/* Header Section */}
         <div className="flex justify-between items-center mb-12">
           <div>
