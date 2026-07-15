@@ -6,10 +6,10 @@ import Tooltip from '@/components/Tooltip'
 
 // Inline styles -- Tailwind is NOT installed in this project (see note in
 // components/Tooltip.jsx). Match this theme in any new page.
-const C = { navy: '#1c3557', gold: '#b57c2a', border: '#ddd4c2', bg: '#f2ede3' }
+import { COLORS as C, FONT_BODY } from '@/lib/theme'
 const inputStyle = {
   width: '100%', padding: '10px 14px', border: `1px solid ${C.border}`, borderRadius: 8,
-  fontSize: 14, fontFamily: 'Georgia, serif', boxSizing: 'border-box',
+  fontSize: 14, fontFamily: FONT_BODY, boxSizing: 'border-box',
 }
 const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 8 }
 const fieldWrap = { marginBottom: 22 }
@@ -49,7 +49,7 @@ export default function NewMicroUnit() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'Georgia, serif', padding: 32 }}>
+    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: FONT_BODY, padding: 32 }}>
       <div style={{ maxWidth: 760, margin: '0 auto' }}>
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ color: C.navy, fontSize: 28, margin: '0 0 4px' }}>Create Micro-Unit</h1>
