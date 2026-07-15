@@ -62,9 +62,20 @@ const WIEMAN_PRACTICES = [
 ]
 const FREQ_OPTIONS = ['Never', 'Rarely', 'Sometimes', 'Often', 'Every lesson']
 
+const SUBJECT_OPTIONS = ['Language Arts', 'Mathematics', 'Science', 'Social Studies', 'Physical Education', 'Art', 'Music', 'French', 'Health & Career Education', 'Applied Design, Skills & Technologies']
+
+const TIME_DISTRIBUTION_DEFAULTS = [
+  { key: 'Teacher-led instruction', min: 40, max: 55, default: 47 },
+  { key: 'Seatwork (worksheets, independent tasks)', min: 20, max: 35, default: 27 },
+  { key: 'Collaborative learning', min: 5, max: 15, default: 10 },
+  { key: 'Hands-on learning', min: 5, max: 10, default: 8 },
+  { key: 'Student-led learning', min: 5, max: 10, default: 8 },
+  { key: 'Non-instructional time', min: 5, max: 10, default: 8 },
+]
+
 export default function InventoriesPage() {
   const router = useRouter()
-  const [step, setStep] = useState(0)
+  const [step, setStep] = useState(0) // 0=intro,1=TSI,2=TPI,3=Phil,4=Wieman,5=review/adjust,6=context,7=time,8=done
   const [tsi, setTsi] = useState({})
   const [tpi, setTpi] = useState({})
   const [phil, setPhil] = useState({})
@@ -72,6 +83,19 @@ export default function InventoriesPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [alreadyDone, setAlreadyDone] = useState(false)
+
+  // Computed findings, adjustable via sliders on the review screen before
+  // being saved - Aj's explicit request: the teacher's stated beliefs
+  // should be able to override the raw instrument score.
+  const [tsiFindings, setTsiFindings] = useState({})
+  const [tpiFindings, setTpiFindings] = useState({})
+  const [philFindings, setPhilFindings] = useState({})
+
+  const [fte, setFte] = useState(100)
+  const [fullEveryDay, setFullEveryDay] = useState(true)
+  const [subjects, setSubjects] = useState(SUBJECT_OPTIONS)
+  const [timeDist, setTimeDist] = useState(Object.fromEntries(TIME_DISTRIBUTION_DEFAULTS.map(t => [t.key, t.default])))
+
 
   useEffect(() => {
     fetch('/api/teacher-inventories').then(r => r.json()).then(d => {
@@ -85,6 +109,23 @@ export default function InventoriesPage() {
       if (v > bestVal) { bestVal = v; best = k }
     }
     return best
+  }
+
+  // Called from step 4 ("Next" instead of "Finish") - computes the raw
+  // findings and seeds the adjustable sliders on the review screen with
+  // them, then moves forward. Nothing is saved yet.
+  function proceedToReview() {
+    const tsiClusters = {}
+    TSI_ITEMS.forEach((item, i) => { tsiClusters[item.cluster] = (tsiClusters[item.cluster] || 0) + (tsi[i] || 0) })
+    const philClusters = {}
+    PHILOSOPHY_ITEMS.forEach((item, i) => {
+      const v = phil[i] === 'Agree' ? 1 : phil[i] === 'Disagree' ? -1 : 0
+      philClusters[item.key] = (philClusters[item.key] || 0) + v
+    })
+    setTsiFindings(tsiClusters)
+    setTpiFindings({ ...tpi })
+    setPhilFindings(philClusters)
+    setStep(5)
   }
 
   async function finish(skipped = false) {
@@ -104,11 +145,17 @@ export default function InventoriesPage() {
           skipped: false,
           tsi_scores: tsiClusters,
           tsi_dominant: computeDominant(tsiClusters),
+          tsi_adjusted: { scores: tsiFindings, dominant: computeDominant(tsiFindings) },
           tpi_scores: tpi,
           tpi_dominant: computeDominant(tpi),
+          tpi_adjusted: { scores: tpiFindings, dominant: computeDominant(tpiFindings) },
           philosophy_scores: philClusters,
           philosophy_dominant: computeDominant(philClusters),
+          philosophy_adjusted: { scores: philFindings, dominant: computeDominant(philFindings) },
           wieman_scores: wieman,
+          fte_percentage: fte,
+          subjects,
+          time_distribution: timeDist,
         }
       }
       const res = await fetch('/api/teacher-inventories', {
@@ -142,7 +189,7 @@ export default function InventoriesPage() {
     <div style={{ maxWidth: 700, margin: '0 auto', padding: '32px 20px', fontFamily: 'system-ui, sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h1 style={{ color: C.navy, fontSize: 22, margin: 0 }}>Get to Know Your Teaching Style</h1>
-        {step > 0 && step < 5 && (
+        {step > 0 && step < 8 && (
           <button onClick={() => finish(true)} disabled={saving}
             style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, padding: '6px 14px', fontSize: 13, cursor: 'pointer', color: C.muted }}>
             Skip &rarr; Go straight to planning
@@ -251,8 +298,124 @@ export default function InventoriesPage() {
               </div>
             </div>
           ))}
+          <button onClick={proceedToReview} disabled={Object.keys(wieman).length < WIEMAN_PRACTICES.length} style={{ ...btn(C.navy), opacity: Object.keys(wieman).length < WIEMAN_PRACTICES.length ? 0.5 : 1 }}>Next: Review Findings</button>
+        </div>
+      )}
+
+      {step === 5 && (
+        <div style={box}>
+          <h2 style={{ color: C.navy, fontSize: 16 }}>Review Your Findings</h2>
+          <p style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>
+            Here's what the inventories found. Adjust any slider to better match your actual beliefs and
+            philosophy &mdash; your judgment of yourself matters more than the raw score. This is what
+            steering uses to decide how much and what style of instruction to weight toward.
+          </p>
+
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>Teaching Style (Grasha&ndash;Riechmann)</div>
+            {Object.keys(tsiFindings).map((cluster) => (
+              <div key={cluster} style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span>{cluster}</span><span style={{ color: C.muted }}>{tsiFindings[cluster]}</span>
+                </div>
+                <input type="range" min={0} max={21} value={tsiFindings[cluster]}
+                  onChange={(e) => setTsiFindings(s => ({ ...s, [cluster]: Number(e.target.value) }))}
+                  style={{ width: '100%' }} />
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>Teaching Perspective</div>
+            {Object.keys(tpiFindings).map((persp) => (
+              <div key={persp} style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span>{persp}</span><span style={{ color: C.muted }}>{tpiFindings[persp]}</span>
+                </div>
+                <input type="range" min={1} max={5} value={tpiFindings[persp]}
+                  onChange={(e) => setTpiFindings(s => ({ ...s, [persp]: Number(e.target.value) }))}
+                  style={{ width: '100%' }} />
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>Philosophy of Education</div>
+            {Object.keys(philFindings).map((p) => (
+              <div key={p} style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span>{p}</span><span style={{ color: C.muted }}>{philFindings[p]}</span>
+                </div>
+                <input type="range" min={-2} max={2} value={philFindings[p]}
+                  onChange={(e) => setPhilFindings(s => ({ ...s, [p]: Number(e.target.value) }))}
+                  style={{ width: '100%' }} />
+              </div>
+            ))}
+          </div>
+
+          <button onClick={() => setStep(6)} style={btn(C.navy)}>Next</button>
+        </div>
+      )}
+
+      {step === 6 && (
+        <div style={box}>
+          <h2 style={{ color: C.navy, fontSize: 16 }}>Your Teaching Load</h2>
+
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 14, marginBottom: 4 }}>Are you a full-time teacher?</div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <button onClick={() => { setFullEveryDay(true); setFte(100) }}
+                style={{ ...btn(fullEveryDay ? C.navy : '#fff', fullEveryDay ? '#fff' : C.navy), border: `1px solid ${C.border}` }}>Yes, full-time (100%)</button>
+              <button onClick={() => setFullEveryDay(false)}
+                style={{ ...btn(!fullEveryDay ? C.navy : '#fff', !fullEveryDay ? '#fff' : C.navy), border: `1px solid ${C.border}` }}>No, part-time</button>
+            </div>
+            {!fullEveryDay && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span>FTE percentage</span><span style={{ color: C.muted }}>{fte}%</span>
+                </div>
+                <input type="range" min={10} max={100} step={5} value={fte} onChange={(e) => setFte(Number(e.target.value))} style={{ width: '100%' }} />
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div style={{ fontSize: 14, marginBottom: 8 }}>Which subjects should this year plan cover?</div>
+            {SUBJECT_OPTIONS.map((subj) => (
+              <label key={subj} style={{ display: 'block', fontSize: 13, marginBottom: 6, cursor: 'pointer' }}>
+                <input type="checkbox" checked={subjects.includes(subj)}
+                  onChange={() => setSubjects(s => s.includes(subj) ? s.filter(x => x !== subj) : [...s, subj])} /> {subj}
+              </label>
+            ))}
+          </div>
+
+          <button onClick={() => setStep(7)} disabled={subjects.length === 0} style={{ ...btn(C.navy), marginTop: 16, opacity: subjects.length === 0 ? 0.5 : 1 }}>Next</button>
+        </div>
+      )}
+
+      {step === 7 && (
+        <div style={box}>
+          <h2 style={{ color: C.navy, fontSize: 16 }}>Time Distribution</h2>
+          <p style={{ color: C.muted, fontSize: 13, marginBottom: 16 }}>
+            Adjust how you'd like instructional time balanced across the year. These are approximate
+            targets, not exact requirements &mdash; typical ranges are shown as a starting point.
+          </p>
+          {TIME_DISTRIBUTION_DEFAULTS.map((t) => (
+            <div key={t.key} style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 2 }}>
+                <span>{t.key}</span>
+                <span style={{ color: C.muted }}>{timeDist[t.key]}% <span style={{ fontSize: 11 }}>(typical {t.min}&ndash;{t.max}%)</span></span>
+              </div>
+              <input type="range" min={0} max={70} value={timeDist[t.key]}
+                onChange={(e) => setTimeDist(s => ({ ...s, [t.key]: Number(e.target.value) }))}
+                style={{ width: '100%' }} />
+            </div>
+          ))}
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
+            Total: {Object.values(timeDist).reduce((a, b) => a + b, 0)}% {Object.values(timeDist).reduce((a, b) => a + b, 0) !== 100 && '(doesn\u2019t need to equal exactly 100 - these are relative weights)'}
+          </div>
           {error && <div style={{ color: '#b3261e', fontSize: 13, marginBottom: 10 }}>{error}</div>}
-          <button onClick={() => finish(false)} disabled={saving || Object.keys(wieman).length < WIEMAN_PRACTICES.length} style={{ ...btn(C.green), opacity: (saving || Object.keys(wieman).length < WIEMAN_PRACTICES.length) ? 0.5 : 1 }}>
+          <button onClick={() => finish(false)} disabled={saving} style={{ ...btn(C.green), opacity: saving ? 0.5 : 1 }}>
             {saving ? 'Saving…' : 'Finish & Go to Year Plan'}
           </button>
         </div>
