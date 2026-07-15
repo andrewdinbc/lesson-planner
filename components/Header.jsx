@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-const C = { navy: '#1c3557', gold: '#b57c2a', border: '#ddd4c2' }
+import { COLORS as C } from '@/lib/theme'
 
 const LINKS = [
   { href: '/dashboard', label: 'Your Plans' },
