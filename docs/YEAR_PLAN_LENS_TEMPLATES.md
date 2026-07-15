@@ -7,7 +7,14 @@ Each lens's Year Structure is a set of periods (usually 3-5) that together cover
 ## The 9 lenses, with default year-structure percentages (Grade 7 BC example)
 
 ### 1. Standards-Based
-BC's official structure: Big Ideas + Curricular Competencies + Content together. No single percentage example was given for this lens specifically — it's the baseline/default lens, and its period breakdown should reflect the BC curriculum's own natural content sequence (similar in spirit to a straightforward content-topic split across the year) rather than a separately invented set of periods.
+BC's official structure: Big Ideas + Curricular Competencies + Content together, organized as one integrated strand per major curriculum area rather than splitting Big Ideas/Content/Competencies apart. DRAFT example (Grade 7 BC) — flagged for Aj's refinement:
+- Geography & Human Systems — 20%
+- Cells, Body Systems & Science Foundations — 20%
+- Heat, Energy & Forces — 20%
+- Numeracy Progression (Fractions, Algebra, Geometry, Data) — 20% (spread across year, not a single block)
+- Global Issues, Civilizations & Sustainability — 20%
+
+What is taught: each period pulls its Big Idea + Curricular Competencies + Content directly from the matching BC curriculum area for that period (e.g. Science's Big Ideas/Competencies/Content for the "Heat, Energy & Forces" period) — this is the one lens where all three elements are always presented together rather than one being the anchor and the others supporting.
 
 ### 2. Skills-Based / Competency-Based
 - Inquiry & Questioning — 20%
