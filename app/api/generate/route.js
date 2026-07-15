@@ -145,6 +145,31 @@ export async function POST(request) {
     // Which section gets emphasized depends on the teacher's chosen
     // curriculum model (Big-Ideas-focused vs Content-focused vs
     // Competency-focused), per Aj's request 2026-07-14.
+    // Pacing anchors: units naturally wrap up right before a break or
+    // reporting deadline, per Aj's request 2026-07-14. Uses exact report
+    // card dates if the teacher provided them; otherwise falls back to
+    // the general rule of thumb (before winter break, before spring
+    // break, ~2 weeks before end of year), using extracted calendar
+    // dates where available.
+    let pacingContext = ''
+    {
+      const [inv3] = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=knows_report_card_dates,report_card_dates,calendar_summary,skipped&limit=1`)
+      if (inv3 && !inv3.skipped) {
+        if (inv3.knows_report_card_dates && inv3.report_card_dates) {
+          const dates = Object.entries(inv3.report_card_dates).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`)
+          if (dates.length) {
+            pacingContext = `\n\nPACING ANCHORS (units should wrap up shortly before these report card due dates, not mid-unit): ${dates.join(', ')}.`
+          }
+        } else {
+          const cal = inv3.calendar_summary || {}
+          const bits = ['before winter break', 'before spring break', 'approximately two weeks before the end of the school year']
+          if (cal.winterVacation) bits[0] = `before winter break (${cal.winterVacation})`
+          if (cal.springVacation) bits[1] = `before spring break (${cal.springVacation})`
+          pacingContext = `\n\nPACING ANCHORS (general rule of thumb - report card dates weren't provided, so pace major units to wrap up ${bits.join(', ')}, not mid-unit).`
+        }
+      }
+    }
+
     let bcCurriculumContext = ''
     {
       const [inv2] = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=subjects,grades,curriculum_model,skipped&limit=1`)
@@ -188,7 +213,7 @@ Theme: ${theme || 'not specified'}
 ${numProjects ? `Number of hands-on projects: ${numProjects}` : ''}
 ${numWorksheets ? `Number of worksheets: ${numWorksheets}` : ''}
 ${parentContext}
-${steeringContext}${profileContext}${bcCurriculumContext}
+${steeringContext}${profileContext}${bcCurriculumContext}${pacingContext}
 
 Return the plan content as clean, well-structured Markdown suitable for direct display and .txt export.`
 
@@ -211,6 +236,7 @@ Return the plan content as clean, well-structured Markdown suitable for direct d
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
 
 
 
