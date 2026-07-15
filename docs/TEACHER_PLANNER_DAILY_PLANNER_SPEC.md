@@ -52,3 +52,27 @@ Teacher Planner (this daily/weekly planner spec) and TeacherAssist (report card 
 - TPT listings = standalone, single-purpose products, priced and marketed independently, each needs to work and sell on its own.
 - optimizeyourfreedom.com = the ecosystem upsell, where owning multiple standalone products together is the pitch.
 - Build implication: Teacher Planner's daily/weekly planner should be architecturally separable from TeacherAssist (even if they happen to share the `lesson-planner` codebase/repo) — no hard dependency that would break one if sold without the other. Cross-linking/integration is a Tier 3 ecosystem feature, not a base requirement.
+
+## Weekly Schedule Builder (elementary) — spec captured 2026-07-15, NOT NEXT IN FLOW
+Aj flagged this as info to remember for later — he believes the Year Plan needs to be finished first, and this weekly-schedule builder comes after, at the "week plan" stage. Do not build yet; revisit when the flow reaches weekly planning.
+
+### Inputs to collect (elementary schools)
+- Weekly schedule shape: prep time / non-contact time
+- Lunch time
+- Block length(s)
+- School start and end time
+- Fixed/non-movable blocks: PE, Library, Non-contact, banded literacy — these anchor the schedule and can't be shifted
+- Preference signal: many teachers want Core classes (literacy, numeracy) in the morning — should inform auto-placement, not just be a checkbox
+
+### Interaction model
+- Teacher checkboxes the **types and sizes** of blocks they need (not manual entry of every block)
+- System **auto-populates** an approximate weekly grid from those selections + fixed constraints + AM-core preference
+- Resulting weekly view must be **draggable and dynamic**: dragging a block to a new slot in a column automatically shifts all other blocks in that column down (reflow, not overlap/overwrite)
+
+### Open questions for when this is scoped
+- Exact drag/reflow behavior across column boundaries (does dragging into a different day only affect that day's column, or does it ripple further?)
+- How fixed blocks (PE/Library/etc.) interact with drag - are they lockable/non-draggable themselves, or just anchors for initial placement?
+- Relationship to the Year Plan's time-distribution sliders (teacher-led/seatwork/collaborative/hands-on/student-led/non-instructional, already captured in the onboarding inventory) — likely feeds this weekly grid's proportions.
+
+### Sequencing note
+Confirmed with Aj: Year Plan generation flow should be completed/stable first; this Weekly Schedule Builder is the next layer after that, part of the Week-level planning stage.
