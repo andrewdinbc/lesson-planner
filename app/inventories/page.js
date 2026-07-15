@@ -182,6 +182,8 @@ export default function InventoriesPage() {
   const [curriculumFit, setCurriculumFit] = useState(null)
   const [selectedModel, setSelectedModel] = useState(null)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [calendarFile, setCalendarFile] = useState(null)
+  const [calendarSummary, setCalendarSummary] = useState(null)
 
 
   useEffect(() => {
@@ -280,7 +282,7 @@ export default function InventoriesPage() {
     <div style={{ maxWidth: 700, margin: '0 auto', padding: '32px 20px', fontFamily: 'system-ui, sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h1 style={{ color: C.navy, fontSize: 22, margin: 0 }}>Get to Know Your Teaching Style</h1>
-        {step > 0 && step < 9 && (
+        {step > 0 && step < 10 && (
           <button onClick={() => finish(true)} disabled={saving}
             style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, padding: '6px 14px', fontSize: 13, cursor: 'pointer', color: C.muted }}>
             Skip &rarr; Go straight to planning
@@ -608,15 +610,77 @@ export default function InventoriesPage() {
           )}
 
           {error && <div style={{ color: '#b3261e', fontSize: 13, marginBottom: 10 }}>{error}</div>}
-          <button onClick={() => finish(false)} disabled={saving} style={{ ...btn(C.green), opacity: saving ? 0.5 : 1 }}>
-            {saving ? 'Saving…' : 'Finish & Go to Year Plan'}
-          </button>
+          <button onClick={() => setStep(9)} style={btn(C.navy)}>Next</button>
         </div>
         )
       })()}
+
+      {step === 9 && (
+        <div style={box}>
+          <h2 style={{ color: C.navy, fontSize: 16 }}>School Calendar <span style={{ color: C.muted, fontWeight: 400, fontSize: 13 }}>(optional)</span></h2>
+          <p style={{ color: C.muted, fontSize: 13, marginBottom: 16, lineHeight: 1.5 }}>
+            If you upload your district's school calendar, the year plan can account for how many actual
+            instructional days you have &mdash; statutory holidays, breaks, Pro-D days, and early dismissals
+            all eat into that. Skip this if you'd rather not, or don't have it handy.
+          </p>
+
+          <input type="file" accept="application/pdf" onChange={(e) => setCalendarFile(e.target.files?.[0] || null)}
+            style={{ width: '100%', marginBottom: 12, fontSize: 13 }} />
+
+          {calendarSummary && (
+            <div style={{ background: '#f0fbf4', border: `1px solid ${C.green}40`, borderRadius: 8, padding: 14, marginBottom: 16, fontSize: 13 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6, color: C.navy }}>Extracted from your calendar:</div>
+              {calendarSummary.daysOfInstruction && <div>Days of instruction: {calendarSummary.daysOfInstruction}</div>}
+              {calendarSummary.daysInSession && <div>Days in session: {calendarSummary.daysInSession}</div>}
+              {calendarSummary.proDDays && <div>Pro-D days: {calendarSummary.proDDays}</div>}
+              {calendarSummary.administrativeDays && <div>Administrative days: {calendarSummary.administrativeDays}</div>}
+              {calendarSummary.instructionalHoursElementary && <div>Instructional hours (Elementary): {calendarSummary.instructionalHoursElementary}</div>}
+              {calendarSummary.instructionalHoursSecondary && <div>Instructional hours (Secondary): {calendarSummary.instructionalHoursSecondary}</div>}
+              {calendarSummary.winterVacation && <div>Winter break: {calendarSummary.winterVacation}</div>}
+              {calendarSummary.springVacation && <div>Spring break: {calendarSummary.springVacation}</div>}
+              {!Object.values(calendarSummary).some(Boolean) && <div style={{ color: C.gold }}>Couldn't confidently pull out the summary stats from this PDF &mdash; the plan will proceed without calendar-aware pacing.</div>}
+            </div>
+          )}
+
+          {error && <div style={{ color: '#b3261e', fontSize: 13, marginBottom: 10 }}>{error}</div>}
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={async () => {
+              if (!calendarFile) { finish(false); return }
+              setSaving(true)
+              setError('')
+              try {
+                const fd = new FormData()
+                fd.append('file', calendarFile)
+                const res = await fetch('/api/school-calendar', { method: 'POST', body: fd })
+                const data = await res.json()
+                if (!res.ok) throw new Error(data.error || 'Could not process calendar')
+                setCalendarSummary(data.summary)
+                setSaving(false)
+              } catch (e) {
+                setError(e.message)
+                setSaving(false)
+              }
+            }} disabled={saving} style={{ ...btn(C.navy), opacity: saving ? 0.5 : 1 }}>
+              {saving ? 'Processing…' : calendarSummary ? 'Looks good' : 'Upload & Extract'}
+            </button>
+            {calendarSummary && (
+              <button onClick={() => finish(false)} disabled={saving} style={{ ...btn(C.green), opacity: saving ? 0.5 : 1 }}>
+                {saving ? 'Saving…' : 'Finish & Go to Year Plan'}
+              </button>
+            )}
+            {!calendarSummary && (
+              <button onClick={() => finish(false)} disabled={saving} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, padding: '10px 20px', fontSize: 14, cursor: 'pointer', color: C.muted }}>
+                Skip &rarr; Finish & Go to Year Plan
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
 
 
 
