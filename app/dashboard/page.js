@@ -69,6 +69,26 @@ export default function Dashboard() {
           </div>
         </Link>
 
+        {/* Quick links to the other planning pages - not yet in a shared nav,
+            added here as a lightweight entry point per Aj's request. */}
+        <div className="flex gap-3 mb-8 flex-wrap">
+          <Tooltip text="Set your Year Structure lens and how much time each period gets" position="top">
+            <Link href="/year-plan" className="bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm font-medium text-slate-700 hover:border-blue-400 transition-colors shadow-sm">
+              🗓️ Year Plan
+            </Link>
+          </Tooltip>
+          <Tooltip text="Set priority weighting for each unit within a subject" position="top">
+            <Link href="/units" className="bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm font-medium text-slate-700 hover:border-blue-400 transition-colors shadow-sm">
+              🎯 Unit Priorities
+            </Link>
+          </Tooltip>
+          <Tooltip text="Build your weekly class schedule with fixed blocks" position="top">
+            <Link href="/week" className="bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm font-medium text-slate-700 hover:border-blue-400 transition-colors shadow-sm">
+              📅 Weekly Schedule
+            </Link>
+          </Tooltip>
+        </div>
+
         {/* Header Section */}
         <div className="flex justify-between items-center mb-12">
           <div>
