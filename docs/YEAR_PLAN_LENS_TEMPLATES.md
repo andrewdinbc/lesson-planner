@@ -86,55 +86,64 @@ The lens changes *how content is grouped, framed, and time-weighted* — not *wh
 - Currently `MODEL_TO_FOCUS` in `lib/bc-curriculum.js` maps each of the 9 curriculum models down to 3 buckets (big_ideas/content/competency) purely for *which BC curriculum section to emphasize in the AI generation prompt*. This lens-template concept is a bigger ask: the **Year/Month/Week/Day scaffolding itself** should visibly reorganize around the chosen lens, with teacher-adjustable % weighting per period, not just bias which curriculum text gets pulled in.
 - Status: **spec only, not yet built.** Sequencing: Year Plan (this) → Weekly Schedule Builder → mismatch resolution.
 
-## Month-by-month breakdowns, with subject tags (Grade 7 BC example, refined 2026-07-15)
-Filtered to the 9 built lenses only (dropped Big Ideas, Content, FPPL, and Interdisciplinary as separate, same exclusions as elsewhere in this doc). This version adds which subject(s) each month's content is drawn from — important because it shows every lens still pulls from real subjects underneath, just grouped differently.
+## Month-by-month breakdowns, maximum content detail (Grade 7 BC example, final pass 2026-07-15)
+Filtered to the 9 built lenses only (dropped Big Ideas, Content, FPPL, Interdisciplinary-as-separate, same exclusions as elsewhere). This is the third and most granular pass — each month now lists specific sub-topics, not just subject areas. Treat this as the authoritative content-detail layer; it supersedes the two earlier month-by-month passes above it in commit history (kept in git history, not duplicated here).
 
 ### Skills-Based / Competency-Based
-- Sept Inquiry Skills — asking testable questions, hypothesis building, planning investigations
-- Oct Data Collection — variables, measurement, recording data
-- Nov Analysis — graphing, identifying patterns, drawing conclusions
-- Dec Communication — paragraph structure, oral presentations, argument writing
-- Jan–Feb Innovation — design thinking, prototype development, testing + iteration, engineering challenges
-- Mar Critical Thinking — evaluating sources, bias + perspective
+- Sept Inquiry Skills — asking testable questions, hypothesis building, planning investigations, selecting variables
+- Oct Data Collection — measurement techniques, recording data, using tools (thermometers, scales, rulers)
+- Nov Analysis — graphing (line, bar, scatter), identifying patterns, drawing conclusions
+- Dec Communication — paragraph structure, oral presentations, argument writing, evidence-based claims
+- Jan Innovation — design thinking, prototype development, iteration cycles
+- Feb Innovation (cont.) — engineering challenges, testing + redesign
+- Mar Critical Thinking — evaluating sources, bias + perspective, credibility checks
 - Apr Personal/Social Skills — identity, collaboration, conflict resolution
 - May Competency Integration — multi-competency project
 - Jun Mastery Showcase — portfolio
 
 ### Integrated / Interdisciplinary (`theme_integrated`, using "Theme-Based" months)
-- Sept–Oct Power — SS: government systems, social power structures; Science: energy sources, energy transfer; ELA: power in literature
-- Nov–Dec Change — SS: historical change (civilizations); Science: climate change; ELA: change in characters; ADST: technological change
-- Jan–Feb Systems — Science: ecosystems, mechanical systems; Math: number systems; SS: human systems
-- Mar–Apr Identity — ELA: identity texts; SS: cultural identity; Arts: identity expression; PHE: personal identity
+- Sept Power — SS: government systems, authority; Science: energy sources; ELA: power dynamics in literature
+- Oct Power (cont.) — SS: social power structures; Science: energy transfer; ADST: technological power
+- Nov Change — SS: historical change (civilizations); Science: climate change; ELA: character change
+- Dec Change (cont.) — ADST: technological change; Arts: change in artistic styles
+- Jan Systems — Science: ecosystems; Math: number systems; SS: human systems
+- Feb Systems (cont.) — Science: mechanical systems; SS: global systems
+- Mar Identity — ELA: identity texts; SS: cultural identity
+- Apr Identity (cont.) — Arts: identity expression; PHE: personal identity
 - May Integration — cross-theme project
 - Jun Showcase — theme exhibition
 
 ### Project-Based Learning (PBL)
-- Sept–Oct Sustainable City Project — urban planning, ecosystems, energy systems, mapping
-- Nov Museum Exhibit Project — ancient civilizations, artifacts, historical storytelling
-- Dec–Jan Documentary Project — global issues, research skills, media literacy
-- Feb–Mar Engineering Project — forces, simple machines, prototype testing
+- Sept–Oct Sustainable City Project — urban planning, ecosystems, energy systems, mapping, population density
+- Nov Museum Exhibit Project — ancient civilizations, artifacts, historical storytelling, exhibit design
+- Dec–Jan Documentary Project — global issues, research skills, media literacy, scriptwriting
+- Feb–Mar Engineering Project — forces, simple machines, prototype testing, mechanical advantage
 - Apr Community Action Project — local issues, advocacy, persuasive writing
 - May Innovation Project — design thinking, student-selected content
 - Jun Exhibition — presentation skills
 
 ### Inquiry-Based
-- Sept Who am I? — identity, culture, personal narrative
-- Oct–Nov How do systems shape life? — ecosystems, human systems, energy flow, interdependence
-- Dec–Jan How does energy move? — heat transfer, forces, machines
-- Feb–Mar How are we connected globally? — trade, migration, climate, sustainability
+- Sept Who am I? — identity, culture, personal narrative, community roles
+- Oct How do systems shape life? — ecosystems, human systems, interdependence
+- Nov How do systems shape life? (cont.) — energy flow, feedback loops
+- Dec How does energy move? — heat transfer, particle theory
+- Jan How does energy move? (cont.) — forces, machines
+- Feb How are we connected globally? — trade, migration, globalization
+- Mar How are we connected globally? (cont.) — climate, sustainability
 - Apr Student-generated inquiries — content varies by student
 - May Inquiry synthesis — content integrates across subjects
 - Jun Showcase — communication skills
 
 ### Place-Based
-- Sept Watershed — water systems, mapping local watershed
-- Oct Local Ecosystems — plants, animals, food webs
-- Nov Indigenous Knowledge — storywork, land relationships
-- Dec–Jan Local Industry — forestry, fishing, tourism, global trade links
-- Feb Local Climate — weather patterns, climate data
-- Mar Local Energy — hydro, solar, wind
+- Sept Watershed — water systems, mapping local watershed, water cycle
+- Oct Local Ecosystems — plants, animals, food webs, Indigenous ecological knowledge
+- Nov Indigenous Knowledge — storywork, land relationships, seasonal cycles
+- Dec Local Industry — forestry, fishing, tourism, resource extraction
+- Jan Local Industry (cont.) — global trade links, supply chains
+- Feb Local Climate — weather patterns, climate data, microclimates
+- Mar Local Energy — hydro, solar, wind, local energy infrastructure
 - Apr Stewardship — sustainability, action planning
-- May Local History — archaeology, settlement
+- May Local History — archaeology, settlement, cultural landscapes
 - Jun Community Exhibition — communication
 
 ### Spiral
@@ -174,6 +183,12 @@ Filtered to the 9 built lenses only (dropped Big Ideas, Content, FPPL, and Inter
 - Jun PHE + Review — health, fitness, year review
 
 ### Standards-Based
-Still no month-by-month example given — outstanding, same gap as before. The Year Structure draft (5 periods × 20%) above needs a matching month breakdown before this lens is complete.
+Still no month-by-month example given across all three passes — outstanding. The Year Structure draft (5 periods × 20%) above needs a matching month breakdown before this lens is complete.
 
-_Status: refined capture with subject tags. Not yet reconciled with the open questions raised earlier (lens-period vs. unit priority relationship; how subjects map into non-subject-centered lenses; whether lens choice is per-teacher or per-subject) — those are being held until Aj asks to revisit them.
+## Layer status: Year-level detail is done (Aj, 2026-07-15)
+Aj considers this the final layer of year-level detail before moving to week-by-week. Claude agrees, with one caveat: **this is content detail, not build-readiness.** The three open structural questions from earlier are still unresolved and will matter once Week-level planning starts pulling from this year-level data:
+1. How lens-period sliders (this doc) relate to unit-level priority sliders (UNIT_PRIORITY_SCHEDULING_SPEC.md) — still undefined.
+2. Whether a teacher's lens choice applies uniformly across all subjects/grades or can vary — still undefined.
+3. Standards-Based lens has no month-by-month example — the one lens with a real content gap.
+
+None of these block continuing to Week-by-week conceptually, but they will need answers before this becomes a working generator rather than a content reference. Suggest resolving #1 either now or explicitly before Week-level work starts, since Week plans will need to know how time flows down from Year → Month → Week, and that flow currently has two undefined slider relationships in it.
