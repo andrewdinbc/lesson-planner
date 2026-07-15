@@ -98,7 +98,7 @@ export async function POST(request) {
     // generation still works fine on steering docs alone.
     let profileContext = ''
     {
-      const [inv] = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=tsi_dominant,tsi_adjusted,tpi_dominant,tpi_adjusted,philosophy_dominant,philosophy_adjusted,fte_percentage,subjects,time_distribution,curriculum_model,skipped&limit=1`)
+      const [inv] = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=tsi_dominant,tsi_adjusted,tpi_dominant,tpi_adjusted,philosophy_dominant,philosophy_adjusted,fte_percentage,subjects,grades,time_distribution,curriculum_model,skipped&limit=1`)
       if (inv && !inv.skipped) {
         const bits = []
         const tsi = inv.tsi_adjusted?.dominant || inv.tsi_dominant
@@ -110,6 +110,7 @@ export async function POST(request) {
 
         const contextBits = []
         if (inv.fte_percentage) contextBits.push(`teaches at ${inv.fte_percentage}% FTE`)
+        if (Array.isArray(inv.grades) && inv.grades.length) contextBits.push(`teaches grade(s): ${inv.grades.join(', ')}`)
         if (inv.curriculum_model) contextBits.push(`this year plan should follow a ${inv.curriculum_model.replace(/_/g, ' ')} curriculum structure`)
         if (Array.isArray(inv.subjects) && inv.subjects.length) contextBits.push(`this year plan should cover: ${inv.subjects.join(', ')}`)
 
@@ -133,25 +134,34 @@ export async function POST(request) {
     // Competency-focused), per Aj's request 2026-07-14.
     let bcCurriculumContext = ''
     {
-      const [inv2] = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=subjects,curriculum_model,skipped&limit=1`)
+      const [inv2] = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=subjects,grades,curriculum_model,skipped&limit=1`)
       const targetSubjects = (inv2 && !inv2.skipped && Array.isArray(inv2.subjects) && inv2.subjects.length)
         ? inv2.subjects
         : (subject ? [subject] : [])
+      // Prefer the teacher's selected grade(s) from onboarding (supports
+      // split/multi-grade classes) over the single grade field on this
+      // specific plan's form, since a year plan should reflect every
+      // grade the teacher actually teaches, not just whatever they typed
+      // into one form field.
+      const targetGrades = (inv2 && !inv2.skipped && Array.isArray(inv2.grades) && inv2.grades.length)
+        ? inv2.grades
+        : (grade ? [grade] : [])
       const focus = focusForModel(inv2?.curriculum_model)
-      const gradeForLookup = grade || ''
 
-      if (targetSubjects.length && gradeForLookup) {
+      if (targetSubjects.length && targetGrades.length) {
         const sections = []
-        for (const subj of targetSubjects) {
-          const curr = await getCurriculum(subj, gradeForLookup)
-          if (!curr) continue
-          const focusText = focus === 'big_ideas' ? curr.bigIdeas : focus === 'competency' ? curr.curricularCompetency : curr.content
-          if (focusText) {
-            sections.push(`--- ${subj} (Grade ${gradeForLookup}) - ${focus.replace('_', ' ')} ---\n${focusText.slice(0, 6000)}`)
+        for (const g of targetGrades) {
+          for (const subj of targetSubjects) {
+            const curr = await getCurriculum(subj, g)
+            if (!curr) continue
+            const focusText = focus === 'big_ideas' ? curr.bigIdeas : focus === 'competency' ? curr.curricularCompetency : curr.content
+            if (focusText) {
+              sections.push(`--- ${subj} (Grade ${g}) - ${focus.replace('_', ' ')} ---\n${focusText.slice(0, 6000)}`)
+            }
           }
         }
         if (sections.length) {
-          bcCurriculumContext = `\n\nOFFICIAL BC CURRICULUM (mandated learning standards from curriculum.gov.bc.ca - this is what must be covered, not optional background material; the section shown below matches this teacher's chosen curriculum approach):\n\n${sections.join('\n\n')}`
+          bcCurriculumContext = `\n\nOFFICIAL BC CURRICULUM (mandated learning standards from curriculum.gov.bc.ca - this is what must be covered, not optional background material; the section(s) shown below match this teacher's chosen curriculum approach, across every grade they teach):\n\n${sections.join('\n\n')}`
         }
       }
     }
@@ -188,6 +198,7 @@ Return the plan content as clean, well-structured Markdown suitable for direct d
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
 
 
 
