@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-const C = { navy: '#1c3557', gold: '#b57c2a', green: '#1a7a3e', border: '#ddd4c2', bg: '#f2ede3' }
+import { COLORS as C, FONT_BODY } from '@/lib/theme'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -38,7 +38,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'Georgia, serif', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: FONT_BODY, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <form onSubmit={submit} style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 32, width: 380 }}>
         <h1 style={{ color: C.navy, fontSize: 24, marginBottom: 20 }}>Lesson Planner</h1>
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
