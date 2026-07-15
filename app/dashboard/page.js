@@ -1,192 +1,155 @@
-'use client';
+'use client'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { createClient } from '@/utils/supabase/client'
+import Tooltip from '@/components/Tooltip'
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { createClient } from '@/utils/supabase/client';
-import Tooltip from '@/components/Tooltip';
+// NOTE: inline styles throughout, matching the rest of this codebase
+// (Header.jsx, app/units, app/week, app/year-plan). Tailwind is NOT
+// installed in this project.
+const C = { navy: '#1c3557', gold: '#b57c2a', green: '#1a7a3e', border: '#ddd4c2', bg: '#f2ede3' }
 
 export default function Dashboard() {
-  const [units, setUnits] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const [units, setUnits] = useState([])
+  const [loading, setLoading] = useState(true)
+  const supabase = createClient()
 
   useEffect(() => {
     const fetchUnits = async () => {
       const { data, error } = await supabase
         .from('micro_units')
         .select('*')
-        .order('created_at', { ascending: false });
-
-      if (!error) setUnits(data);
-      setLoading(false);
-    };
-
-    fetchUnits();
-  }, []);
+        .order('created_at', { ascending: false })
+      if (!error) setUnits(data)
+      setLoading(false)
+    }
+    fetchUnits()
+  }, [])
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this micro-unit?')) return;
-    
-    const { error } = await supabase
-      .from('micro_units')
-      .delete()
-      .eq('id', id);
-
-    if (!error) {
-      setUnits(units.filter(u => u.id !== id));
-    }
-  };
+    if (!confirm('Delete this micro-unit?')) return
+    const { error } = await supabase.from('micro_units').delete().eq('id', id)
+    if (!error) setUnits(units.filter((u) => u.id !== id))
+  }
 
   const handleDuplicate = async (unit) => {
-    const newUnit = { ...unit };
-    delete newUnit.id;
-    
-    const { data, error } = await supabase
-      .from('micro_units')
-      .insert([newUnit])
-      .select();
+    const newUnit = { ...unit }
+    delete newUnit.id
+    const { data, error } = await supabase.from('micro_units').insert([newUnit]).select()
+    if (!error && data) setUnits([data[0], ...units])
+  }
 
-    if (!error && data) {
-      setUnits([data[0], ...units]);
-    }
-  };
+  if (loading) {
+    return <div style={{ padding: 32, fontFamily: 'Georgia, serif', color: '#666' }}>Loading…</div>
+  }
 
-  if (loading) return <div className="p-8">Loading...</div>;
+  const cardBtn = {
+    background: '#fff', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 16px',
+    fontSize: 13, fontWeight: 600, color: C.navy, textDecoration: 'none', display: 'inline-block',
+  }
+  const actionBtn = (bg) => ({
+    background: bg, color: '#fff', padding: '8px 0', borderRadius: 6, fontSize: 13, fontWeight: 600,
+    textAlign: 'center', textDecoration: 'none', border: 'none', cursor: 'pointer', flex: 1,
+  })
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Teacher Inventories entry point - one of the first things a
-            teacher can do, per Aj's request. Skippable, so this is a
-            visible invite rather than a forced gate. */}
-        <Link href="/inventories" className="block mb-8 bg-white border border-slate-200 rounded-lg p-5 hover:border-blue-400 transition-colors shadow-sm">
-          <div className="flex justify-between items-center">
-            <div>
-              <div className="font-semibold text-slate-900">📋 Tell us about your teaching style</div>
-              <div className="text-sm text-slate-600 mt-1">4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach.</div>
+    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'Georgia, serif', padding: 32 }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+        <Tooltip text="4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach." position="bottom">
+          <Link href="/inventories" style={{
+            display: 'block', marginBottom: 24, background: '#fff', border: `1px solid ${C.border}`,
+            borderRadius: 10, padding: 18, textDecoration: 'none',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 700, color: C.navy, fontSize: 15 }}>📋 Tell us about your teaching style</div>
+                <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+                  4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach.
+                </div>
+              </div>
+              <span style={{ color: C.gold, fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', marginLeft: 16 }}>Start →</span>
             </div>
-            <span className="text-blue-600 font-medium text-sm whitespace-nowrap ml-4">Start &rarr;</span>
-          </div>
-        </Link>
+          </Link>
+        </Tooltip>
 
-        {/* Quick links to the other planning pages - not yet in a shared nav,
-            added here as a lightweight entry point per Aj's request. */}
-        <div className="flex gap-3 mb-8 flex-wrap">
+        <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
           <Tooltip text="Set your Year Structure lens and how much time each period gets" position="top">
-            <Link href="/year-plan" className="bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm font-medium text-slate-700 hover:border-blue-400 transition-colors shadow-sm">
-              🗓️ Year Plan
-            </Link>
+            <Link href="/year-plan" style={cardBtn}>🗓️ Year Plan</Link>
           </Tooltip>
           <Tooltip text="Set priority weighting for each unit within a subject" position="top">
-            <Link href="/units" className="bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm font-medium text-slate-700 hover:border-blue-400 transition-colors shadow-sm">
-              🎯 Unit Priorities
-            </Link>
+            <Link href="/units" style={cardBtn}>🎯 Unit Priorities</Link>
           </Tooltip>
           <Tooltip text="Build your weekly class schedule with fixed blocks" position="top">
-            <Link href="/week" className="bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm font-medium text-slate-700 hover:border-blue-400 transition-colors shadow-sm">
-              📅 Weekly Schedule
-            </Link>
+            <Link href="/week" style={cardBtn}>📅 Weekly Schedule</Link>
           </Tooltip>
         </div>
 
-        {/* Header Section */}
-        <div className="flex justify-between items-center mb-12">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
           <div>
-            <h1 className="text-4xl font-bold text-slate-900 mb-2">Dashboard</h1>
-            <p className="text-slate-600">Manage your micro-units</p>
+            <h1 style={{ color: C.navy, fontSize: 30, margin: '0 0 4px' }}>Dashboard</h1>
+            <p style={{ color: '#666', fontSize: 14, margin: 0 }}>Manage your micro-units</p>
           </div>
-          
           <Tooltip text="Create a new micro-unit from scratch" position="left">
-            <Link
-              href="/micro-units/new"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg 
-                font-medium transition-colors shadow-md hover:shadow-lg"
-            >
+            <Link href="/micro-units/new" style={{
+              background: C.gold, color: '#fff', padding: '10px 22px', borderRadius: 6,
+              fontWeight: 600, textDecoration: 'none', fontSize: 14,
+            }}>
               + New Micro-Unit
             </Link>
           </Tooltip>
         </div>
 
-        {/* Units Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {units.length === 0 ? (
-            <div className="col-span-full text-center py-12">
-              <p className="text-slate-500 text-lg mb-4">No micro-units yet</p>
-              <Tooltip text="Start creating your first lesson unit" position="top">
-                <Link
-                  href="/micro-units/new"
-                  className="inline-block bg-blue-600 hover:bg-blue-700 text-white 
-                    px-6 py-3 rounded-lg font-medium transition-colors"
-                >
-                  Create First Unit
-                </Link>
-              </Tooltip>
-            </div>
-          ) : (
-            units.map(unit => (
-              <div key={unit.id} className="bg-white rounded-lg shadow-md hover:shadow-lg 
-                transition-shadow overflow-hidden border border-slate-200">
-                
-                {/* Unit Header */}
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 border-b 
-                  border-slate-200">
-                  <h3 className="font-semibold text-slate-900 text-lg truncate">
+        {units.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '48px 0' }}>
+            <p style={{ color: '#888', fontSize: 16, marginBottom: 16 }}>No micro-units yet</p>
+            <Tooltip text="Start creating your first lesson unit" position="top">
+              <Link href="/micro-units/new" style={{
+                display: 'inline-block', background: C.gold, color: '#fff', padding: '10px 22px',
+                borderRadius: 6, fontWeight: 600, textDecoration: 'none', fontSize: 14,
+              }}>
+                Create First Unit
+              </Link>
+            </Tooltip>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
+            {units.map((unit) => (
+              <div key={unit.id} style={{
+                background: '#fff', borderRadius: 10, border: `1px solid ${C.border}`, overflow: 'hidden',
+              }}>
+                <div style={{ background: C.bg, padding: 14, borderBottom: `1px solid ${C.border}` }}>
+                  <h3 style={{ color: C.navy, fontSize: 16, margin: 0, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {unit.title}
                   </h3>
-                  <p className="text-sm text-slate-600 mt-1">{unit.grade_level}</p>
+                  <p style={{ fontSize: 12, color: '#888', margin: '4px 0 0' }}>{unit.grade_level}</p>
                 </div>
-
-                {/* Unit Content */}
-                <div className="p-4">
-                  <p className="text-sm text-slate-600 line-clamp-3 mb-4">
+                <div style={{ padding: 14 }}>
+                  <p style={{
+                    fontSize: 13, color: '#666', marginBottom: 14, display: '-webkit-box',
+                    WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                  }}>
                     {unit.description}
                   </p>
-                  <div className="flex gap-2">
-                    {/* View/Edit Button */}
+                  <div style={{ display: 'flex', gap: 8 }}>
                     <Tooltip text="View and edit unit details" position="top">
-                      <Link
-                        href={`/micro-units/${unit.id}`}
-                        className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 
-                          rounded text-sm font-medium transition-colors text-center"
-                      >
-                        View
-                      </Link>
+                      <Link href={`/micro-units/${unit.id}`} style={actionBtn(C.navy)}>View</Link>
                     </Tooltip>
-
-                    {/* Duplicate Button */}
                     <Tooltip text="Create a copy of this unit" position="top">
-                      <button
-                        onClick={() => handleDuplicate(unit)}
-                        className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 
-                          rounded text-sm font-medium transition-colors"
-                      >
-                        Duplicate
-                      </button>
+                      <button onClick={() => handleDuplicate(unit)} style={actionBtn(C.green)}>Duplicate</button>
                     </Tooltip>
-
-                    {/* Delete Button */}
                     <Tooltip text="Permanently delete this unit" position="top">
-                      <button
-                        onClick={() => handleDelete(unit.id)}
-                        className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 
-                          rounded text-sm font-medium transition-colors"
-                      >
-                        Delete
-                      </button>
+                      <button onClick={() => handleDelete(unit.id)} style={actionBtn('#a33')}>Delete</button>
                     </Tooltip>
                   </div>
                 </div>
-
-                {/* Unit Metadata */}
-                <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 text-xs 
-                  text-slate-500">
-                  <p>Created: {new Date(unit.created_at).toLocaleDateString()}</p>
+                <div style={{ background: C.bg, padding: '10px 14px', borderTop: `1px solid ${C.border}`, fontSize: 11, color: '#999' }}>
+                  Created: {new Date(unit.created_at).toLocaleDateString()}
                 </div>
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
-  );
+  )
 }
