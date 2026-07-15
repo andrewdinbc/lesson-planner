@@ -2,6 +2,10 @@ import Anthropic from '@anthropic-ai/sdk'
 import { sbSelect, sbInsert } from '../../../lib/supabase'
 import { getCurrentUser } from '../../../lib/session'
 import { STEERING_CATEGORIES, STEERING_CATEGORY_MAP } from '../../../lib/steering-categories'
+import { getCurriculum, focusForModel } from '../../../lib/bc-curriculum'
+
+export const runtime = 'nodejs'
+export const maxDuration = 120
 
 // The core "steering" feature: full steering-document texts are pulled in
 // and injected into the generation prompt as background context, so output
@@ -121,6 +125,37 @@ export async function POST(request) {
     }
 
 
+    // Official BC Ministry curriculum (Big Ideas / Content / Curricular
+    // Competency), fetched live from curriculum.gov.bc.ca and cached -
+    // this is the actual mandated curriculum, not steering material.
+    // Which section gets emphasized depends on the teacher's chosen
+    // curriculum model (Big-Ideas-focused vs Content-focused vs
+    // Competency-focused), per Aj's request 2026-07-14.
+    let bcCurriculumContext = ''
+    {
+      const [inv2] = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=subjects,curriculum_model,skipped&limit=1`)
+      const targetSubjects = (inv2 && !inv2.skipped && Array.isArray(inv2.subjects) && inv2.subjects.length)
+        ? inv2.subjects
+        : (subject ? [subject] : [])
+      const focus = focusForModel(inv2?.curriculum_model)
+      const gradeForLookup = grade || ''
+
+      if (targetSubjects.length && gradeForLookup) {
+        const sections = []
+        for (const subj of targetSubjects) {
+          const curr = await getCurriculum(subj, gradeForLookup)
+          if (!curr) continue
+          const focusText = focus === 'big_ideas' ? curr.bigIdeas : focus === 'competency' ? curr.curricularCompetency : curr.content
+          if (focusText) {
+            sections.push(`--- ${subj} (Grade ${gradeForLookup}) - ${focus.replace('_', ' ')} ---\n${focusText.slice(0, 6000)}`)
+          }
+        }
+        if (sections.length) {
+          bcCurriculumContext = `\n\nOFFICIAL BC CURRICULUM (mandated learning standards from curriculum.gov.bc.ca - this is what must be covered, not optional background material; the section shown below matches this teacher's chosen curriculum approach):\n\n${sections.join('\n\n')}`
+        }
+      }
+    }
+
     const prompt = `Generate ${TYPE_GUIDANCE[type]}.
 
 Title: ${title}
@@ -130,7 +165,7 @@ Theme: ${theme || 'not specified'}
 ${numProjects ? `Number of hands-on projects: ${numProjects}` : ''}
 ${numWorksheets ? `Number of worksheets: ${numWorksheets}` : ''}
 ${parentContext}
-${steeringContext}${profileContext}
+${steeringContext}${profileContext}${bcCurriculumContext}
 
 Return the plan content as clean, well-structured Markdown suitable for direct display and .txt export.`
 
@@ -153,6 +188,7 @@ Return the plan content as clean, well-structured Markdown suitable for direct d
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
 
 
 
