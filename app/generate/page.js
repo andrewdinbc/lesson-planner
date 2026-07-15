@@ -18,19 +18,16 @@ function GenerateForm() {
   const [theme, setTheme] = useState('')
   const [numProjects, setNumProjects] = useState('')
   const [numWorksheets, setNumWorksheets] = useState('')
-  const [docs, setDocs] = useState([])
-  const [selectedDocs, setSelectedDocs] = useState([])
   const [generating, setGenerating] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    fetch('/api/steering-documents').then((r) => r.json()).then((d) => setDocs(d.documents || [])).catch(() => {})
-  }, [])
-
-  function toggleDoc(id) {
-    setSelectedDocs((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
-  }
+  // Steering documents are Aj's global admin-set background context now -
+  // applied automatically to every generation server-side. There used to
+  // be a picker here, but that's dead weight now: teachers can't see or
+  // select these, and the endpoint it called is admin-gated, so it would
+  // just silently fail for every teacher account. Removed entirely rather
+  // than leaving a broken control on the page.
 
   async function generate(e) {
     e.preventDefault()
@@ -39,7 +36,7 @@ function GenerateForm() {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, title, subject, grade, theme, numProjects, numWorksheets, parentId, steeringDocIds: selectedDocs }),
+        body: JSON.stringify({ type, title, subject, grade, theme, numProjects, numWorksheets, parentId }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Generation failed')
@@ -85,17 +82,6 @@ function GenerateForm() {
                 style={{ flex: 1, padding: 10, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: 'inherit' }} />
             </div>
 
-            {docs.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 13, color: C.navy, fontWeight: 600, marginBottom: 6 }}>Ground this plan in steering documents:</div>
-                {docs.map((d) => (
-                  <label key={d.id} style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
-                    <input type="checkbox" checked={selectedDocs.includes(d.id)} onChange={() => toggleDoc(d.id)} /> {d.title}
-                  </label>
-                ))}
-              </div>
-            )}
-
             {error && <div style={{ background: '#fdecea', border: '1px solid #f5b7b1', borderRadius: 8, padding: 12, color: '#c0392b', marginBottom: 16 }}>{error}</div>}
 
             <Tooltip text="Generates this lesson/unit plan using your steering documents to ground it — takes a moment, nothing is saved until it finishes." width={240}>
@@ -134,5 +120,6 @@ export default function GeneratePage() {
     </Suspense>
   )
 }
+
 
 
