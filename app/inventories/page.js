@@ -144,6 +144,7 @@ const TPI_SECTIONS = [
 ]
 
 const SUBJECT_OPTIONS = ['Language Arts', 'Mathematics', 'Science', 'Social Studies', 'Physical Education', 'Art', 'Music', 'French', 'Health & Career Education', 'Applied Design, Skills & Technologies']
+const GRADE_OPTIONS = ['K', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']
 
 const TIME_DISTRIBUTION_DEFAULTS = [
   { key: 'Teacher-led instruction', min: 40, max: 55, default: 47 },
@@ -176,6 +177,7 @@ export default function InventoriesPage() {
   const [fte, setFte] = useState(100)
   const [fullEveryDay, setFullEveryDay] = useState(true)
   const [subjects, setSubjects] = useState(SUBJECT_OPTIONS)
+  const [grades, setGrades] = useState([])
   const [timeDist, setTimeDist] = useState(Object.fromEntries(TIME_DISTRIBUTION_DEFAULTS.map(t => [t.key, t.default])))
   const [curriculumFit, setCurriculumFit] = useState(null)
   const [selectedModel, setSelectedModel] = useState(null)
@@ -240,6 +242,7 @@ export default function InventoriesPage() {
           wieman_scores: wieman,
           fte_percentage: fte,
           subjects,
+          grades,
           time_distribution: timeDist,
           curriculum_model: selectedModel,
           curriculum_scores: curriculumFit?.scores || null,
@@ -483,6 +486,25 @@ export default function InventoriesPage() {
             )}
           </div>
 
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 14, marginBottom: 8 }}>Which grade(s) are you teaching this year plan for?</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {GRADE_OPTIONS.map((g) => (
+                <button key={g} type="button"
+                  onClick={() => setGrades((s) => s.includes(g) ? s.filter((x) => x !== g) : [...s, g])}
+                  style={{
+                    width: 40, height: 36, borderRadius: 6, fontSize: 13, cursor: 'pointer',
+                    border: `1px solid ${C.border}`,
+                    background: grades.includes(g) ? C.navy : '#fff',
+                    color: grades.includes(g) ? '#fff' : C.navy,
+                  }}>
+                  {g}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>Select more than one if you teach a split or multi-grade class.</div>
+          </div>
+
           <div>
             <div style={{ fontSize: 14, marginBottom: 8 }}>Which subjects should this year plan cover?</div>
             {SUBJECT_OPTIONS.map((subj) => (
@@ -493,7 +515,7 @@ export default function InventoriesPage() {
             ))}
           </div>
 
-          <button onClick={() => setStep(7)} disabled={subjects.length === 0} style={{ ...btn(C.navy), marginTop: 16, opacity: subjects.length === 0 ? 0.5 : 1 }}>Next</button>
+          <button onClick={() => setStep(7)} disabled={subjects.length === 0 || grades.length === 0} style={{ ...btn(C.navy), marginTop: 16, opacity: (subjects.length === 0 || grades.length === 0) ? 0.5 : 1 }}>Next</button>
         </div>
       )}
 
@@ -595,6 +617,7 @@ export default function InventoriesPage() {
     </div>
   )
 }
+
 
 
 
