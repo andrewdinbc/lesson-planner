@@ -24,11 +24,17 @@ export async function POST(request) {
       skipped: !!body.skipped,
       tsi_scores: body.tsi_scores || null,
       tsi_dominant: body.tsi_dominant || null,
+      tsi_adjusted: body.tsi_adjusted || null,
       tpi_scores: body.tpi_scores || null,
       tpi_dominant: body.tpi_dominant || null,
+      tpi_adjusted: body.tpi_adjusted || null,
       philosophy_scores: body.philosophy_scores || null,
       philosophy_dominant: body.philosophy_dominant || null,
+      philosophy_adjusted: body.philosophy_adjusted || null,
       wieman_scores: body.wieman_scores || null,
+      fte_percentage: body.fte_percentage || null,
+      subjects: body.subjects || null,
+      time_distribution: body.time_distribution || null,
       completed_at: body.skipped ? null : new Date().toISOString(),
     }
 
