@@ -274,7 +274,7 @@ export default function InventoriesPage() {
 
   if (alreadyDone && step === 0) {
     return (
-      <div style={{ maxWidth: 700, margin: '60px auto', padding: 20, fontFamily: 'system-ui, sans-serif', textAlign: 'center' }}>
+      <div style={{ maxWidth: 700, margin: '60px auto', padding: 20, fontFamily: FONT_BODY, textAlign: 'center' }}>
         <h1 style={{ color: C.navy }}>You've already completed this</h1>
         <p style={{ color: C.muted, marginBottom: 20 }}>Want to retake it, or head straight to planning?</p>
         <button onClick={() => setAlreadyDone(false)} style={{ ...btn(C.navy), marginRight: 10 }}>Retake Inventories</button>
@@ -284,7 +284,7 @@ export default function InventoriesPage() {
   }
 
   return (
-    <div style={{ maxWidth: 700, margin: '0 auto', padding: '32px 20px', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ maxWidth: 700, margin: '0 auto', padding: '32px 20px', fontFamily: FONT_BODY }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h1 style={{ color: C.navy, fontSize: 22, margin: 0 }}>Get to Know Your Teaching Style</h1>
         {step > 0 && step < 10 && (
