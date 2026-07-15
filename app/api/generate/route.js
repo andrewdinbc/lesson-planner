@@ -98,7 +98,7 @@ export async function POST(request) {
     // generation still works fine on steering docs alone.
     let profileContext = ''
     {
-      const [inv] = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=tsi_dominant,tsi_adjusted,tpi_dominant,tpi_adjusted,philosophy_dominant,philosophy_adjusted,fte_percentage,subjects,grades,time_distribution,curriculum_model,skipped&limit=1`)
+      const [inv] = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=tsi_dominant,tsi_adjusted,tpi_dominant,tpi_adjusted,philosophy_dominant,philosophy_adjusted,fte_percentage,subjects,grades,time_distribution,curriculum_model,school_calendar_summary,skipped&limit=1`)
       if (inv && !inv.skipped) {
         const bits = []
         const tsi = inv.tsi_adjusted?.dominant || inv.tsi_dominant
@@ -111,6 +111,19 @@ export async function POST(request) {
         const contextBits = []
         if (inv.fte_percentage) contextBits.push(`teaches at ${inv.fte_percentage}% FTE`)
         if (Array.isArray(inv.grades) && inv.grades.length) contextBits.push(`teaches grade(s): ${inv.grades.join(', ')}`)
+
+        let calendarBits = ''
+        const cal = inv.school_calendar_summary
+        if (cal && Object.values(cal).some(Boolean)) {
+          const calParts = []
+          if (cal.daysOfInstruction) calParts.push(`${cal.daysOfInstruction} instructional days this year`)
+          if (cal.proDDays) calParts.push(`${cal.proDDays} Pro-D days (non-instructional)`)
+          if (cal.winterVacation) calParts.push(`winter break: ${cal.winterVacation}`)
+          if (cal.springVacation) calParts.push(`spring break: ${cal.springVacation}`)
+          if (cal.instructionalHoursElementary) calParts.push(`elementary instructional hours: ${cal.instructionalHoursElementary}`)
+          if (cal.instructionalHoursSecondary) calParts.push(`secondary instructional hours: ${cal.instructionalHoursSecondary}`)
+          if (calParts.length) calendarBits = `\n\nSCHOOL CALENDAR (from this teacher's actual district calendar - pace the plan to genuinely fit within this, not a generic 10-month assumption): ${calParts.join('; ')}.`
+        }
         if (inv.curriculum_model) contextBits.push(`this year plan should follow a ${inv.curriculum_model.replace(/_/g, ' ')} curriculum structure`)
         if (Array.isArray(inv.subjects) && inv.subjects.length) contextBits.push(`this year plan should cover: ${inv.subjects.join(', ')}`)
 
@@ -120,7 +133,7 @@ export async function POST(request) {
         }
 
         if (bits.length || contextBits.length || timeBits) {
-          profileContext = `\n\nTEACHER PROFILE (guidance for tailoring this plan - beliefs/values dictate emphasis and style, not a separate source of content to invent from): ${bits.length ? `This teacher's ${bits.join('; ')}. Weight your use of the background material toward strategies that fit this profile where there's a genuine choice, without ignoring material that doesn't match it.` : ''} ${contextBits.length ? contextBits.join('; ') + '.' : ''}${timeBits}`
+          profileContext = `\n\nTEACHER PROFILE (guidance for tailoring this plan - beliefs/values dictate emphasis and style, not a separate source of content to invent from): ${bits.length ? `This teacher's ${bits.join('; ')}. Weight your use of the background material toward strategies that fit this profile where there's a genuine choice, without ignoring material that doesn't match it.` : ''} ${contextBits.length ? contextBits.join('; ') + '.' : ''}${timeBits}${calendarBits}`
         }
       }
     }
@@ -198,6 +211,7 @@ Return the plan content as clean, well-structured Markdown suitable for direct d
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
 
 
 
