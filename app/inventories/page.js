@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { computeCurriculumFit } from '@/lib/curriculum-models'
 
-const C = { navy: '#1c3557', gold: '#b57c2a', green: '#1a7a3e', border: '#ddd4c2', bg: '#f2ede3', muted: '#8a7d6e' }
+import { COLORS as C, FONT_BODY } from '@/lib/theme'
 
 const TSI_ITEMS = [
   { cluster: 'Expert', text: 'I maintain high standards for my students.' },
