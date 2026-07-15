@@ -5,9 +5,11 @@ _Captured 2026-07-15 from Aj. Next step in the planning flow after Year Plan / g
 After a teacher has selected grades + subjects (already captured in the inventory flow) and curriculum data has been fetched (BC curriculum fetcher already shipped), generate the actual **teachable content, unit by unit, one subject at a time.**
 
 ## Unit structure by subject
-- **Language Arts**: split into 3 strands — Reading, Writing, Oral Language. Units generated per strand.
-- **Math**: units are NOT strand-split the same way — content/units are designed directly off the curricular document structure (i.e. follow whatever unit breakdown BC's Math curriculum content naturally implies, not an artificial fixed split).
-- Other subjects: not yet specified by Aj — default to whatever the curriculum document's Content section implies, consistent with Math's approach, until told otherwise.
+- **Language Arts**: split into 3 strands — Reading, Writing, Oral Language. Units generated per strand. High-detail/high-scrutiny by default.
+- **Math**: units are NOT strand-split the same way — content/units are designed directly off the curricular document structure (i.e. follow whatever unit breakdown BC's Math curriculum content naturally implies, not an artificial fixed split). High-detail/high-scrutiny by default.
+- **All other subjects (Science, Social Studies, PE, Art, Music, etc.)**: default to LOWER detail/scrutiny — lighter-weight unit generation, less granular priority tuning than LA/Math get out of the box (2026-07-15, Aj). This keeps the onboarding/generation flow from front-loading effort onto subjects most teachers won't scrutinize as closely.
+  - **Opt-in escalation**: teachers must be given an explicit choice, per subject, to elevate any of these "other" subjects to the same greater-scrutiny treatment LA/Math get (full unit breakdown + priority sliders), if that's a subject they specifically want to focus on. Not automatic — a deliberate per-subject toggle/choice in the flow.
+  - LA and Math are NOT offered this toggle — they're always high-detail; the choice only applies to the "other" tier.
 
 ## Priority system
 - **All units start at equal priority.**
