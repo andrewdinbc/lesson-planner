@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { computeCurriculumFit } from '@/lib/curriculum-models'
 
 const C = { navy: '#1c3557', gold: '#b57c2a', green: '#1a7a3e', border: '#ddd4c2', bg: '#f2ede3', muted: '#8a7d6e' }
 
@@ -176,6 +177,9 @@ export default function InventoriesPage() {
   const [fullEveryDay, setFullEveryDay] = useState(true)
   const [subjects, setSubjects] = useState(SUBJECT_OPTIONS)
   const [timeDist, setTimeDist] = useState(Object.fromEntries(TIME_DISTRIBUTION_DEFAULTS.map(t => [t.key, t.default])))
+  const [curriculumFit, setCurriculumFit] = useState(null)
+  const [selectedModel, setSelectedModel] = useState(null)
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
 
   useEffect(() => {
@@ -237,6 +241,9 @@ export default function InventoriesPage() {
           fte_percentage: fte,
           subjects,
           time_distribution: timeDist,
+          curriculum_model: selectedModel,
+          curriculum_scores: curriculumFit?.scores || null,
+          curriculum_model_source: selectedModel === curriculumFit?.recommended ? 'auto' : 'manual',
         }
       }
       const res = await fetch('/api/teacher-inventories', {
@@ -270,7 +277,7 @@ export default function InventoriesPage() {
     <div style={{ maxWidth: 700, margin: '0 auto', padding: '32px 20px', fontFamily: 'system-ui, sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h1 style={{ color: C.navy, fontSize: 22, margin: 0 }}>Get to Know Your Teaching Style</h1>
-        {step > 0 && step < 8 && (
+        {step > 0 && step < 9 && (
           <button onClick={() => finish(true)} disabled={saving}
             style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, padding: '6px 14px', fontSize: 13, cursor: 'pointer', color: C.muted }}>
             Skip &rarr; Go straight to planning
@@ -512,6 +519,66 @@ export default function InventoriesPage() {
             Total: {Object.values(timeDist).reduce((a, b) => a + b, 0)}% {Object.values(timeDist).reduce((a, b) => a + b, 0) !== 100 && '(doesn\u2019t need to equal exactly 100 - these are relative weights)'}
           </div>
           {error && <div style={{ color: '#b3261e', fontSize: 13, marginBottom: 10 }}>{error}</div>}
+          <button onClick={() => {
+            const fit = computeCurriculumFit(tsiFindings, tpiFindings, philFindings, wieman)
+            setCurriculumFit(fit)
+            setSelectedModel(fit.recommended)
+            setStep(8)
+          }} style={btn(C.navy)}>Next: Curriculum Approach</button>
+        </div>
+      )}
+
+      {step === 8 && curriculumFit && (
+        <div style={box}>
+          <h2 style={{ color: C.navy, fontSize: 16 }}>Curriculum Approach</h2>
+          <p style={{ color: C.muted, fontSize: 13, marginBottom: 16 }}>
+            Based on your survey results, here's the curriculum approach that seems to fit you best.
+            This shapes how the year plan is structured &mdash; change it any time if it doesn't feel right.
+          </p>
+
+          {(() => {
+            const top = curriculumFit.scores.find((s) => s.key === selectedModel) || curriculumFit.scores[0]
+            return (
+              <div style={{ background: '#f0fbf4', border: `1px solid ${C.green}40`, borderRadius: 8, padding: 16, marginBottom: 20 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: C.navy }}>{top.emoji} {top.label}</div>
+                <div style={{ fontSize: 13, color: C.navy, marginTop: 6, lineHeight: 1.5 }}>{top.summary}</div>
+                {top.lowConfidence && <div style={{ fontSize: 12, color: C.gold, marginTop: 8 }}>Note: the surveys don't directly measure this approach, so treat this as a lower-confidence guess than the others.</div>}
+              </div>
+            )
+          })()}
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Or choose a different approach:</div>
+            {curriculumFit.scores.map((s) => (
+              <label key={s.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8, cursor: 'pointer', fontSize: 13 }}>
+                <input type="radio" name="curriculumModel" checked={selectedModel === s.key} onChange={() => setSelectedModel(s.key)} style={{ marginTop: 3 }} />
+                <span>{s.emoji} <strong>{s.label}</strong>{s.key === curriculumFit.recommended && <span style={{ color: C.green, fontSize: 11 }}> (recommended)</span>}</span>
+              </label>
+            ))}
+          </div>
+
+          <button onClick={() => setShowAdvanced((v) => !v)}
+            style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', textDecoration: 'underline', padding: 0, marginBottom: 16 }}>
+            {showAdvanced ? 'Hide' : 'Show'} advanced fit breakdown
+          </button>
+
+          {showAdvanced && (
+            <div style={{ marginBottom: 20, background: C.bg, borderRadius: 8, padding: 14 }}>
+              {curriculumFit.scores.map((s) => (
+                <div key={s.key} style={{ marginBottom: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                    <span>{s.emoji} {s.label}{s.lowConfidence && ' \u2014 low signal coverage'}</span>
+                    <span style={{ color: C.muted }}>{s.pct}%</span>
+                  </div>
+                  <div style={{ height: 6, background: '#e5ddc8', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${s.pct}%`, background: s.key === selectedModel ? C.green : C.border }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {error && <div style={{ color: '#b3261e', fontSize: 13, marginBottom: 10 }}>{error}</div>}
           <button onClick={() => finish(false)} disabled={saving} style={{ ...btn(C.green), opacity: saving ? 0.5 : 1 }}>
             {saving ? 'Saving…' : 'Finish & Go to Year Plan'}
           </button>
@@ -520,4 +587,5 @@ export default function InventoriesPage() {
     </div>
   )
 }
+
 
