@@ -1,6 +1,6 @@
-import { getCurrentUser } from '../../../../lib/session'
-import { extractPdfText } from '../../../../lib/pdf-extract'
-import { sbSelect, sbInsert, sbUpdate } from '../../../../lib/supabase'
+import { getCurrentUser } from '../../../lib/session'
+import { extractPdfText } from '../../../lib/pdf-extract'
+import { sbSelect, sbInsert, sbUpdate } from '../../../lib/supabase'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
