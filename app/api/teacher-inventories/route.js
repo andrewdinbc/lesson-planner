@@ -35,6 +35,9 @@ export async function POST(request) {
       fte_percentage: body.fte_percentage || null,
       subjects: body.subjects || null,
       grades: body.grades || null,
+      knows_report_card_dates: !!body.knows_report_card_dates,
+      report_card_dates: body.report_card_dates || null,
+      calendar_summary: body.calendar_summary || null,
       time_distribution: body.time_distribution || null,
       completed_at: body.skipped ? null : new Date().toISOString(),
     }
@@ -50,3 +53,4 @@ export async function POST(request) {
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
