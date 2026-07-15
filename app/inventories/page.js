@@ -43,24 +43,104 @@ const PHILOSOPHY_ITEMS = [
   { key: 'Social Reconstructionism', text: 'Students should learn to challenge injustice.' },
 ]
 
-// Condensed version of the Wieman/Gilbert Teaching Practices Inventory
-// categories (UBC) - the full instrument is long and item-exact wording
-// wasn't provided, so this captures the same practice areas at a
-// representative level. Scored as "how often" rather than agree/disagree,
-// matching the original TPI's format.
-const WIEMAN_PRACTICES = [
-  'I share explicit learning goals with students before instruction.',
-  'I use pre-class reading or preparation assignments.',
-  'I use in-class activities where students work in small groups.',
-  'I use clicker questions or similar real-time formative checks during class.',
-  'I give students think time before requiring an answer.',
-  'I use ungraded or low-stakes formative assessments to guide instruction.',
-  'I provide detailed, actionable feedback on assignments (not just a grade).',
-  'I use rubrics that are shared with students in advance.',
-  'I incorporate peer instruction or peer feedback.',
-  'I collect and use data (quiz results, exit tickets) to adjust upcoming lessons.',
+// Full Teaching Practices Inventory, provided by Aj as an original
+// rewritten questionnaire (2026-07-14) preserving the structure/intent of
+// the Wieman TPI without reproducing its copyrighted item text. Section A
+// mixes short-answer fields with checkboxes; everything else is
+// checkbox-only. Section F (TA support) only shows if the teacher
+// indicates they have TA support, since it doesn't apply otherwise.
+const TPI_SECTIONS = [
+  {
+    key: 'A', title: 'Course Information',
+    fields: [
+      { id: 'courseTitle', label: 'Course/class title', type: 'text' },
+      { id: 'courseLevel', label: 'Grade/level', type: 'text' },
+      { id: 'numStudents', label: 'Approximate number of students', type: 'text' },
+    ],
+    checkboxes: [
+      'Learning goals are clearly stated for the course.',
+      'Learning goals are shared with students.',
+      'Course outline includes expectations, grading, and policies.',
+      'Course outline includes statements about skills students will develop.',
+    ],
+  },
+  {
+    key: 'B', title: 'Supporting Materials', prompt: 'Which materials do you provide to students?',
+    checkboxes: [
+      'Required textbook or primary readings',
+      'Supplemental readings',
+      'Online materials (videos, simulations, tutorials)',
+      'Worked examples',
+      'Practice problems with solutions',
+      'Concept summaries or review sheets',
+      'Study guides',
+      'Pre-class materials (readings, videos, notes)',
+    ],
+  },
+  {
+    key: 'C', title: 'In-Class Activities', prompt: 'Which instructional practices do you use during class time?',
+    checkboxes: [
+      'Instructor lectures or explains concepts',
+      'Instructor asks questions to check understanding',
+      'Students answer instructor questions',
+      'Students discuss questions with peers',
+      'Students work in small groups',
+      'Students complete in-class worksheets or tasks',
+      'Use of clickers or polling',
+      'Demonstrations or models used in class',
+      'Students engage in problem-solving during class',
+      'Students present or share work',
+      'Instructor adjusts instruction based on student responses',
+    ],
+  },
+  {
+    key: 'D', title: 'Assignments', prompt: 'Which types of assignments do you use?',
+    checkboxes: [
+      'Weekly problem sets',
+      'Short written assignments',
+      'Longer written assignments or projects',
+      'Online homework',
+      'Lab work (if applicable)',
+      'Group assignments',
+      'Practice quizzes',
+      'Opportunities for revision or resubmission',
+    ],
+  },
+  {
+    key: 'E', title: 'Feedback & Assessment', prompt: 'Which assessment and feedback practices do you use?',
+    checkboxes: [
+      'Frequent formative feedback',
+      'Rubrics provided for major assignments',
+      'Practice exams',
+      'Midterm exams',
+      'Final exam',
+      'Opportunities for students to self-assess',
+      'Pre-tests or diagnostic assessments',
+      'Post-tests to measure learning gains',
+    ],
+  },
+  {
+    key: 'F', title: 'TA / Instructor Support', conditional: true, prompt: 'If your class uses teaching assistants or EAs, which supports are provided?',
+    checkboxes: [
+      'TAs/EAs receive training',
+      'TAs/EAs receive guidance on grading',
+      'TAs/EAs receive guidance on teaching practices',
+      'TAs/EAs attend class sessions',
+      'TAs/EAs hold office hours or support blocks',
+      'TAs/EAs help facilitate group work',
+    ],
+  },
+  {
+    key: 'G', title: 'Collaboration in Teaching', prompt: 'Which collaborative teaching practices do you use?',
+    checkboxes: [
+      'Collaborates with colleagues on course/lesson design',
+      'Uses shared departmental materials',
+      'Participates in teaching workshops or PD',
+      'Revises course/lessons based on feedback',
+      'Uses data to improve teaching',
+    ],
+  },
 ]
-const FREQ_OPTIONS = ['Never', 'Rarely', 'Sometimes', 'Often', 'Every lesson']
 
 const SUBJECT_OPTIONS = ['Language Arts', 'Mathematics', 'Science', 'Social Studies', 'Physical Education', 'Art', 'Music', 'French', 'Health & Career Education', 'Applied Design, Skills & Technologies']
 
@@ -80,6 +160,7 @@ export default function InventoriesPage() {
   const [tpi, setTpi] = useState({})
   const [phil, setPhil] = useState({})
   const [wieman, setWieman] = useState({})
+  const [hasTA, setHasTA] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [alreadyDone, setAlreadyDone] = useState(false)
@@ -283,22 +364,38 @@ export default function InventoriesPage() {
 
       {step === 4 && (
         <div style={box}>
-          <h2 style={{ color: C.navy, fontSize: 16 }}>4. Teaching Practices</h2>
-          <p style={{ color: C.muted, fontSize: 13, marginBottom: 16 }}>How often do you currently do each of these?</p>
-          {WIEMAN_PRACTICES.map((text, i) => (
-            <div key={i} style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 14, marginBottom: 4 }}>{text}</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {FREQ_OPTIONS.map(opt => (
-                  <button key={opt} onClick={() => setWieman(s => ({ ...s, [i]: opt }))}
-                    style={{ padding: '5px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: wieman[i] === opt ? C.navy : '#fff', color: wieman[i] === opt ? '#fff' : C.navy, cursor: 'pointer', fontSize: 11 }}>
-                    {opt}
-                  </button>
-                ))}
-              </div>
+          <h2 style={{ color: C.navy, fontSize: 16 }}>4. Teaching Practices Inventory</h2>
+          <p style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>Check everything that applies. This is about your current practices, not right/wrong answers.</p>
+
+          {TPI_SECTIONS.filter((sec) => !sec.conditional || hasTA).map((sec) => (
+            <div key={sec.key} style={{ marginBottom: 22 }}>
+              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{sec.key}. {sec.title}</div>
+              {sec.prompt && <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>{sec.prompt}</div>}
+
+              {sec.fields && sec.fields.map((f) => (
+                <div key={f.id} style={{ marginBottom: 8 }}>
+                  <label style={{ fontSize: 13, display: 'block', marginBottom: 2 }}>{f.label}</label>
+                  <input value={wieman[f.id] || ''} onChange={(e) => setWieman(s => ({ ...s, [f.id]: e.target.value }))}
+                    style={{ width: '100%', maxWidth: 300, padding: 6, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, boxSizing: 'border-box' }} />
+                </div>
+              ))}
+
+              {sec.checkboxes.map((text, i) => {
+                const id = `${sec.key}_${i}`
+                return (
+                  <label key={id} style={{ display: 'block', fontSize: 13, marginBottom: 5, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={!!wieman[id]} onChange={() => setWieman(s => ({ ...s, [id]: !s[id] }))} /> {text}
+                  </label>
+                )
+              })}
             </div>
           ))}
-          <button onClick={proceedToReview} disabled={Object.keys(wieman).length < WIEMAN_PRACTICES.length} style={{ ...btn(C.navy), opacity: Object.keys(wieman).length < WIEMAN_PRACTICES.length ? 0.5 : 1 }}>Next: Review Findings</button>
+
+          <label style={{ display: 'block', fontSize: 13, marginBottom: 20, cursor: 'pointer', color: C.muted }}>
+            <input type="checkbox" checked={hasTA} onChange={() => setHasTA(v => !v)} /> This class has teaching assistants / EAs (shows Section F)
+          </label>
+
+          <button onClick={proceedToReview} style={btn(C.navy)}>Next: Review Findings</button>
         </div>
       )}
 
@@ -423,3 +520,4 @@ export default function InventoriesPage() {
     </div>
   )
 }
+
