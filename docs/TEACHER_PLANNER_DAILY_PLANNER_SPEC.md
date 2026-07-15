@@ -46,3 +46,9 @@ Clarity, practicality, consistency. Avoid clutter — emphasize the sections tea
 - This is a distinct layer from the BC/Alberta/Ontario curriculum-fetch + year-plan generation work already shipped in `lesson-planner` (Big Ideas/Content/Curricular Competency, multi-grade support) — that's the AI *generation* engine; this spec is the day-to-day *operating* surface teachers live in around it.
 - Natural home: new top-level sections/tabs in `lesson-planner` (or a dedicated "Daily Planner" area) sitting alongside the existing hierarchical year→month→week→day→lesson plan structure, rather than a separate product.
 - Status: **spec only, not yet built.** Needs scoping into discrete Hyperion tasks (e.g. one per category above) before queuing.
+
+## Business model clarification (Aj, 2026-07-15)
+Teacher Planner (this daily/weekly planner spec) and TeacherAssist (report card comment generator) are **sold separately on TPT** — distinct listings, distinct purchases. They are only bundled/positioned together as part of the **holistic ecosystem offering sold through optimizeyourfreedom.com** (the existing Tier 3 model). This applies generally across Aj's product line, not just these two:
+- TPT listings = standalone, single-purpose products, priced and marketed independently, each needs to work and sell on its own.
+- optimizeyourfreedom.com = the ecosystem upsell, where owning multiple standalone products together is the pitch.
+- Build implication: Teacher Planner's daily/weekly planner should be architecturally separable from TeacherAssist (even if they happen to share the `lesson-planner` codebase/repo) — no hard dependency that would break one if sold without the other. Cross-linking/integration is a Tier 3 ecosystem feature, not a base requirement.
