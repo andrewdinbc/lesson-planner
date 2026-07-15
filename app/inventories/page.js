@@ -528,7 +528,14 @@ export default function InventoriesPage() {
         </div>
       )}
 
-      {step === 8 && curriculumFit && (
+      {step === 8 && curriculumFit && (() => {
+        const BASIC_KEYS = ['subject_centered', 'competency_based', 'standards_based', 'theme_integrated']
+        const basicScores = curriculumFit.scores.filter((s) => BASIC_KEYS.includes(s.key))
+        const basicTop = [...basicScores].sort((a, b) => b.score - a.score)[0]
+        const visibleList = showAdvanced ? curriculumFit.scores : basicScores
+        const top = visibleList.find((s) => s.key === selectedModel) || (showAdvanced ? curriculumFit.scores[0] : basicTop)
+
+        return (
         <div style={box}>
           <h2 style={{ color: C.navy, fontSize: 16 }}>Curriculum Approach</h2>
           <p style={{ color: C.muted, fontSize: 13, marginBottom: 16 }}>
@@ -536,30 +543,30 @@ export default function InventoriesPage() {
             This shapes how the year plan is structured &mdash; change it any time if it doesn't feel right.
           </p>
 
-          {(() => {
-            const top = curriculumFit.scores.find((s) => s.key === selectedModel) || curriculumFit.scores[0]
-            return (
-              <div style={{ background: '#f0fbf4', border: `1px solid ${C.green}40`, borderRadius: 8, padding: 16, marginBottom: 20 }}>
-                <div style={{ fontWeight: 700, fontSize: 15, color: C.navy }}>{top.emoji} {top.label}</div>
-                <div style={{ fontSize: 13, color: C.navy, marginTop: 6, lineHeight: 1.5 }}>{top.summary}</div>
-                {top.lowConfidence && <div style={{ fontSize: 12, color: C.gold, marginTop: 8 }}>Note: the surveys don't directly measure this approach, so treat this as a lower-confidence guess than the others.</div>}
-              </div>
-            )
-          })()}
+          <div style={{ background: '#f0fbf4', border: `1px solid ${C.green}40`, borderRadius: 8, padding: 16, marginBottom: 20 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: C.navy }}>{top.emoji} {top.label}</div>
+            <div style={{ fontSize: 13, color: C.navy, marginTop: 6, lineHeight: 1.5 }}>{top.summary}</div>
+            {top.lowConfidence && <div style={{ fontSize: 12, color: C.gold, marginTop: 8 }}>Note: the surveys don't directly measure this approach, so treat this as a lower-confidence guess than the others.</div>}
+          </div>
 
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Or choose a different approach:</div>
-            {curriculumFit.scores.map((s) => (
+            {visibleList.map((s) => (
               <label key={s.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8, cursor: 'pointer', fontSize: 13 }}>
                 <input type="radio" name="curriculumModel" checked={selectedModel === s.key} onChange={() => setSelectedModel(s.key)} style={{ marginTop: 3 }} />
-                <span>{s.emoji} <strong>{s.label}</strong>{s.key === curriculumFit.recommended && <span style={{ color: C.green, fontSize: 11 }}> (recommended)</span>}</span>
+                <span>{s.emoji} <strong>{s.label}</strong>{s.key === basicTop.key && !showAdvanced && <span style={{ color: C.green, fontSize: 11 }}> (recommended)</span>}{s.key === curriculumFit.recommended && showAdvanced && <span style={{ color: C.green, fontSize: 11 }}> (top overall fit)</span>}</span>
               </label>
             ))}
           </div>
 
-          <button onClick={() => setShowAdvanced((v) => !v)}
+          <button onClick={() => {
+            const next = !showAdvanced
+            setShowAdvanced(next)
+            if (next) setSelectedModel(curriculumFit.recommended)
+            else setSelectedModel(basicTop.key)
+          }}
             style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', textDecoration: 'underline', padding: 0, marginBottom: 16 }}>
-            {showAdvanced ? 'Hide' : 'Show'} advanced fit breakdown
+            {showAdvanced ? 'Back to basic 4 options' : 'Show advanced: all 9 approaches + fit breakdown'}
           </button>
 
           {showAdvanced && (
@@ -567,7 +574,7 @@ export default function InventoriesPage() {
               {curriculumFit.scores.map((s) => (
                 <div key={s.key} style={{ marginBottom: 8 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                    <span>{s.emoji} {s.label}{s.lowConfidence && ' \u2014 low signal coverage'}</span>
+                    <span>{s.emoji} {s.label}{s.lowConfidence ? ' - low signal coverage' : ''}</span>
                     <span style={{ color: C.muted }}>{s.pct}%</span>
                   </div>
                   <div style={{ height: 6, background: '#e5ddc8', borderRadius: 3, overflow: 'hidden' }}>
@@ -583,9 +590,12 @@ export default function InventoriesPage() {
             {saving ? 'Saving…' : 'Finish & Go to Year Plan'}
           </button>
         </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
+
+
 
 
