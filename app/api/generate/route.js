@@ -86,6 +86,24 @@ export async function POST(request) {
       }
     }
 
+    // Teacher inventory profile (optional, skippable at onboarding) - a
+    // light-touch style hint, NOT a substitute for the steering material
+    // above. This tells the AI which parts of the (mandatory) steering
+    // documents to lean on harder for THIS teacher, not a separate source
+    // of truth. Absent or skipped inventories just mean no extra hint -
+    // generation still works fine on steering docs alone.
+    let profileContext = ''
+    {
+      const [inv] = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=tsi_dominant,tpi_dominant,philosophy_dominant,skipped&limit=1`)
+      if (inv && !inv.skipped && (inv.tsi_dominant || inv.tpi_dominant || inv.philosophy_dominant)) {
+        const bits = []
+        if (inv.tsi_dominant) bits.push(`teaching style leans ${inv.tsi_dominant}`)
+        if (inv.tpi_dominant) bits.push(`teaching perspective leans ${inv.tpi_dominant}`)
+        if (inv.philosophy_dominant) bits.push(`philosophy of education leans ${inv.philosophy_dominant}`)
+        profileContext = `\n\nTEACHER PROFILE (light guidance only - use this to decide which parts of the background source material above to emphasize, not as a separate source of content): This teacher's ${bits.join('; ')}. Weight your use of the background material toward strategies that fit this profile where there's a genuine choice, without ignoring material that doesn't match it.`
+      }
+    }
+
     const prompt = `Generate ${TYPE_GUIDANCE[type]}.
 
 Title: ${title}
@@ -95,7 +113,7 @@ Theme: ${theme || 'not specified'}
 ${numProjects ? `Number of hands-on projects: ${numProjects}` : ''}
 ${numWorksheets ? `Number of worksheets: ${numWorksheets}` : ''}
 ${parentContext}
-${steeringContext}
+${steeringContext}${profileContext}
 
 Return the plan content as clean, well-structured Markdown suitable for direct display and .txt export.`
 
@@ -118,5 +136,6 @@ Return the plan content as clean, well-structured Markdown suitable for direct d
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
 
 
