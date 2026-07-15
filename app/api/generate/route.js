@@ -94,15 +94,31 @@ export async function POST(request) {
     // generation still works fine on steering docs alone.
     let profileContext = ''
     {
-      const [inv] = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=tsi_dominant,tpi_dominant,philosophy_dominant,skipped&limit=1`)
-      if (inv && !inv.skipped && (inv.tsi_dominant || inv.tpi_dominant || inv.philosophy_dominant)) {
+      const [inv] = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=tsi_dominant,tsi_adjusted,tpi_dominant,tpi_adjusted,philosophy_dominant,philosophy_adjusted,fte_percentage,subjects,time_distribution,skipped&limit=1`)
+      if (inv && !inv.skipped) {
         const bits = []
-        if (inv.tsi_dominant) bits.push(`teaching style leans ${inv.tsi_dominant}`)
-        if (inv.tpi_dominant) bits.push(`teaching perspective leans ${inv.tpi_dominant}`)
-        if (inv.philosophy_dominant) bits.push(`philosophy of education leans ${inv.philosophy_dominant}`)
-        profileContext = `\n\nTEACHER PROFILE (light guidance only - use this to decide which parts of the background source material above to emphasize, not as a separate source of content): This teacher's ${bits.join('; ')}. Weight your use of the background material toward strategies that fit this profile where there's a genuine choice, without ignoring material that doesn't match it.`
+        const tsi = inv.tsi_adjusted?.dominant || inv.tsi_dominant
+        const tpi = inv.tpi_adjusted?.dominant || inv.tpi_dominant
+        const phil = inv.philosophy_adjusted?.dominant || inv.philosophy_dominant
+        if (tsi) bits.push(`teaching style leans ${tsi}`)
+        if (tpi) bits.push(`teaching perspective leans ${tpi}`)
+        if (phil) bits.push(`philosophy of education leans ${phil}`)
+
+        const contextBits = []
+        if (inv.fte_percentage) contextBits.push(`teaches at ${inv.fte_percentage}% FTE`)
+        if (Array.isArray(inv.subjects) && inv.subjects.length) contextBits.push(`this year plan should cover: ${inv.subjects.join(', ')}`)
+
+        let timeBits = ''
+        if (inv.time_distribution && Object.keys(inv.time_distribution).length) {
+          timeBits = `\n\nPREFERRED TIME DISTRIBUTION (target approximate % of instructional time per activity type - use this to shape the balance of activity types across the plan): ${Object.entries(inv.time_distribution).map(([k, v]) => `${k}: ${v}%`).join(', ')}.`
+        }
+
+        if (bits.length || contextBits.length || timeBits) {
+          profileContext = `\n\nTEACHER PROFILE (guidance for tailoring this plan - beliefs/values dictate emphasis and style, not a separate source of content to invent from): ${bits.length ? `This teacher's ${bits.join('; ')}. Weight your use of the background material toward strategies that fit this profile where there's a genuine choice, without ignoring material that doesn't match it.` : ''} ${contextBits.length ? contextBits.join('; ') + '.' : ''}${timeBits}`
+        }
       }
     }
+
 
     const prompt = `Generate ${TYPE_GUIDANCE[type]}.
 
@@ -136,6 +152,7 @@ Return the plan content as clean, well-structured Markdown suitable for direct d
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
 
 
 
