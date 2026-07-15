@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { CURRICULUM_MODELS } from '@/lib/curriculum-models'
 
-const C = { navy: '#1c3557', gold: '#b57c2a', green: '#1a7a3e', border: '#ddd4c2', bg: '#f2ede3' }
+import { COLORS as C, FONT_BODY } from '@/lib/theme'
 
 export default function YearPlanPage() {
   const [modelKey, setModelKey] = useState('standards_based')
@@ -53,7 +53,7 @@ export default function YearPlanPage() {
   const currentModel = CURRICULUM_MODELS.find((m) => m.key === modelKey)
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'Georgia, serif', padding: 32 }}>
+    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: FONT_BODY, padding: 32 }}>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
         <a href="/dashboard" style={{ color: C.navy, fontSize: 13 }}>← Dashboard</a>
         <h1 style={{ color: C.navy, fontSize: 28, margin: '8px 0 4px' }}>Year Plan</h1>
