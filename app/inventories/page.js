@@ -184,6 +184,8 @@ export default function InventoriesPage() {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [calendarFile, setCalendarFile] = useState(null)
   const [calendarSummary, setCalendarSummary] = useState(null)
+  const [knowsReportCards, setKnowsReportCards] = useState(null) // null = not answered yet, true/false
+  const [reportCardDates, setReportCardDates] = useState({ term1: '', term2: '', term3: '' })
 
 
   useEffect(() => {
@@ -245,6 +247,8 @@ export default function InventoriesPage() {
           fte_percentage: fte,
           subjects,
           grades,
+          knows_report_card_dates: knowsReportCards === true,
+          report_card_dates: knowsReportCards === true ? reportCardDates : null,
           time_distribution: timeDist,
           curriculum_model: selectedModel,
           curriculum_scores: curriculumFit?.scores || null,
@@ -642,6 +646,48 @@ export default function InventoriesPage() {
             </div>
           )}
 
+          <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 20, paddingTop: 20 }}>
+            <h3 style={{ color: C.navy, fontSize: 14, marginBottom: 8 }}>Report Card Due Dates</h3>
+            <p style={{ color: C.muted, fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
+              Units naturally wrap up right before a break or reporting deadline. If you know your exact
+              report card dates, add them below &mdash; otherwise we'll default to the general rule of thumb:
+              due before winter break, before spring break, and roughly two weeks before the end of the
+              school year.
+            </p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <button type="button" onClick={() => setKnowsReportCards(true)}
+                style={{ ...btn(knowsReportCards === true ? C.navy : '#fff', knowsReportCards === true ? '#fff' : C.navy), border: `1px solid ${C.border}`, fontSize: 13, padding: '8px 16px' }}>
+                I know my dates
+              </button>
+              <button type="button" onClick={() => setKnowsReportCards(false)}
+                style={{ ...btn(knowsReportCards === false ? C.navy : '#fff', knowsReportCards === false ? '#fff' : C.navy), border: `1px solid ${C.border}`, fontSize: 13, padding: '8px 16px' }}>
+                I don't know &mdash; use the general rule
+              </button>
+            </div>
+
+            {knowsReportCards === true && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 260 }}>
+                {['term1', 'term2', 'term3'].map((t, i) => (
+                  <label key={t} style={{ fontSize: 13 }}>
+                    Term {i + 1} report card due
+                    <input type="date" value={reportCardDates[t]}
+                      onChange={(e) => setReportCardDates((s) => ({ ...s, [t]: e.target.value }))}
+                      style={{ display: 'block', width: '100%', padding: 6, marginTop: 2, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }} />
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {knowsReportCards === false && (
+              <div style={{ fontSize: 12, color: C.muted, background: C.bg, borderRadius: 6, padding: 10 }}>
+                Using the default rule of thumb: units will be paced to wrap up before winter break, before
+                spring break, and about two weeks before the end of the school year.
+                {calendarSummary?.winterVacation && ` Winter break from your calendar: ${calendarSummary.winterVacation}.`}
+                {calendarSummary?.springVacation && ` Spring break from your calendar: ${calendarSummary.springVacation}.`}
+              </div>
+            )}
+          </div>
+
           {error && <div style={{ color: '#b3261e', fontSize: 13, marginBottom: 10 }}>{error}</div>}
 
           <div style={{ display: 'flex', gap: 10 }}>
@@ -680,6 +726,7 @@ export default function InventoriesPage() {
     </div>
   )
 }
+
 
 
 
