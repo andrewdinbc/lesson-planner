@@ -183,12 +183,36 @@ Filtered to the 9 built lenses only (dropped Big Ideas, Content, FPPL, Interdisc
 - Jun PHE + Review — health, fitness, year review
 
 ### Standards-Based
-Still no month-by-month example given across all three passes — outstanding. The Year Structure draft (5 periods × 20%) above needs a matching month breakdown before this lens is complete.
+Filled 2026-07-15. Note this lens runs 10 explicit monthly standards-blocks rather than the 5-period/20%-each draft sketched earlier in this doc — the month-by-month below supersedes that draft's period framing (the 5x20% split can still work as a rolled-up Year Overview summary of these 10 months, just needs re-deriving from this data rather than treated as separately authoritative).
+- Sept Foundations & Proficiency Baseline — Math: review Grade 6 numeracy, diagnostic placement tasks; ELA: reading strategies (predicting, questioning, summarizing), baseline writing sample; Competencies: self-assessment, goal-setting, "I can" statements
+- Oct Number & Operations Standards — Math: fraction equivalence/ordering/add-subtract, ratios and proportional reasoning; ELA (supporting): word problems, math journals; Competencies: reasoning and modeling with numbers
+- Nov Algebra Standards — Math: expressions, variables, simple equations, patterns and relationships; ELA (supporting): explaining algebraic thinking in writing; Competencies: representing patterns, solving for unknowns
+- Dec Geometry & Measurement Standards — Math: area/perimeter/volume of common shapes, angle types and measurement; Competencies: visualizing/describing shapes, using tools accurately
+- Jan Science: Cells & Body Systems Standards — Science: cell structure and function, major body systems and interactions; Competencies: questioning, planning investigations, using models
+- Feb Science: Heat & Energy Standards — Science: heat transfer (conduction/convection/radiation), particle model of matter; Competencies: observing, measuring, explaining phenomena
+- Mar Science: Forces & Machines Standards — Science: gravity/friction/balanced-unbalanced forces, simple machines and mechanical advantage; Competencies: designing and testing devices, interpreting results
+- Apr Social Studies: Ancient Civilizations Standards — SS: Mesopotamia/Egypt/Greece/Rome (governance, belief systems, technology); Competencies: inquiry into continuity/change, cause/effect, evidence use
+- May Social Studies: Global Issues Standards — SS: contemporary global issues (conflict, poverty, climate), children's rights, international organizations; Competencies: taking perspectives, evaluating responses, proposing actions
+- Jun Integration & Proficiency Summative — Cross-curricular integrated tasks drawing on math/science/SS/ELA; Competencies: communicating understanding, reflecting on growth; Standards focus: summative proficiency-scale judgments on key learning standards
 
-## Layer status: Year-level detail is done (Aj, 2026-07-15)
-Aj considers this the final layer of year-level detail before moving to week-by-week. Claude agrees, with one caveat: **this is content detail, not build-readiness.** The three open structural questions from earlier are still unresolved and will matter once Week-level planning starts pulling from this year-level data:
-1. How lens-period sliders (this doc) relate to unit-level priority sliders (UNIT_PRIORITY_SCHEDULING_SPEC.md) — still undefined.
-2. Whether a teacher's lens choice applies uniformly across all subjects/grades or can vary — still undefined.
-3. Standards-Based lens has no month-by-month example — the one lens with a real content gap.
+## Resolved: lens-period sliders vs. unit-priority sliders (2026-07-15)
+Two-level time allocation, defined top-down:
+1. **Year-level lens % defines the time window.** E.g. PBL's "Engineer a Machine — 30% of year" ≈ 12 of 40 weeks.
+2. **Unit-priority sliders (within that window) define subject time shares.** E.g. within those 12 weeks: Science 60%, Math 25%, ELA 15% — even when subjects are integrated daily rather than blocked separately.
+3. **Week-by-week generation reads both layers in order**: pull the lens period + its week-count, pull the unit priorities inside that period, then distribute standards-aligned tasks across weeks so each subject's targeted standards get covered in proportion to its slider by the period's end.
 
-None of these block continuing to Week-by-week conceptually, but they will need answers before this becomes a working generator rather than a content reference. Suggest resolving #1 either now or explicitly before Week-level work starts, since Week plans will need to know how time flows down from Year → Month → Week, and that flow currently has two undefined slider relationships in it.
+Plain version: **lens-period sliders define *when*; unit-priority sliders define *what proportion of content* fills that window.** This directly connects UNIT_PRIORITY_SCHEDULING_SPEC.md's unit sliders to this doc's lens-period sliders — they're not two independent systems, unit sliders operate *inside* whatever window a lens period carves out.
+
+## Resolved: lens choice scope (2026-07-15)
+Two-tier model, chosen over strict per-teacher or strict per-subject:
+- **Primary lens (per teacher)** — one dominant lens for the whole year (e.g. "this teacher runs a PBL year"), used to frame the week: theme, driving question, or project context.
+- **Secondary lens (per subject, optional)** — a subject can run its own lens for how its tasks/progression are structured inside each block (e.g. Math = Standards-Based, Science = Inquiry-Based, SS = Place-Based), even while the primary lens still frames the overall week experience.
+- This keeps the classroom experience coherent (one clear year-long framing story) while still letting subject-specific pedagogy vary underneath it.
+
+## Layer status: Year-level detail is complete (2026-07-15)
+All three prior open questions are now resolved:
+1. Lens-period vs. unit-priority slider relationship — resolved above (windowing model).
+2. Lens choice scope — resolved above (primary/secondary two-tier model).
+3. Standards-Based month gap — filled above.
+
+Ready to move to Week-by-week planning. Week generation logic should implement the windowing model above: read lens period + week count → read unit priorities inside that window → distribute tasks.
