@@ -94,7 +94,7 @@ export async function POST(request) {
     // generation still works fine on steering docs alone.
     let profileContext = ''
     {
-      const [inv] = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=tsi_dominant,tsi_adjusted,tpi_dominant,tpi_adjusted,philosophy_dominant,philosophy_adjusted,fte_percentage,subjects,time_distribution,skipped&limit=1`)
+      const [inv] = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=tsi_dominant,tsi_adjusted,tpi_dominant,tpi_adjusted,philosophy_dominant,philosophy_adjusted,fte_percentage,subjects,time_distribution,curriculum_model,skipped&limit=1`)
       if (inv && !inv.skipped) {
         const bits = []
         const tsi = inv.tsi_adjusted?.dominant || inv.tsi_dominant
@@ -106,6 +106,7 @@ export async function POST(request) {
 
         const contextBits = []
         if (inv.fte_percentage) contextBits.push(`teaches at ${inv.fte_percentage}% FTE`)
+        if (inv.curriculum_model) contextBits.push(`this year plan should follow a ${inv.curriculum_model.replace(/_/g, ' ')} curriculum structure`)
         if (Array.isArray(inv.subjects) && inv.subjects.length) contextBits.push(`this year plan should cover: ${inv.subjects.join(', ')}`)
 
         let timeBits = ''
@@ -152,6 +153,7 @@ Return the plan content as clean, well-structured Markdown suitable for direct d
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
 
 
 
