@@ -68,9 +68,26 @@ export default function WeekPage() {
     setError(''); setGenerating(true)
     try {
       await savePrefsOnly()
-      // even split across LA/Math/Science/SS as a starting default until
-      // the Unit Priority sliders feed real weights in
-      const unitPriorities = { 'Language Arts': 0.3, Mathematics: 0.3, Science: 0.2, 'Social Studies': 0.2 }
+      // Pull real subject weights from the Unit Priority sliders
+      // (app/units/page.js) rather than an even split - falls back to an
+      // even split only if the teacher hasn't set any unit priorities yet.
+      const upRes = await fetch('/api/unit-priorities')
+      const upData = await upRes.json()
+      let unitPriorities = {}
+      if (upData.units && upData.units.length) {
+        const bySubject = {}
+        for (const u of upData.units) {
+          if (u.removed) continue
+          bySubject[u.subject] = (bySubject[u.subject] || 0) + Number(u.priority)
+        }
+        const total = Object.values(bySubject).reduce((a, b) => a + b, 0)
+        if (total > 0) {
+          for (const s in bySubject) unitPriorities[s] = bySubject[s] / total
+        }
+      }
+      if (!Object.keys(unitPriorities).length) {
+        unitPriorities = { 'Language Arts': 0.3, Mathematics: 0.3, Science: 0.2, 'Social Studies': 0.2 }
+      }
       const res = await fetch('/api/weekly-schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
