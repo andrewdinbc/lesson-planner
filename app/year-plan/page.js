@@ -11,6 +11,9 @@ export default function YearPlanPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [weeksAvailable, setWeeksAvailable] = useState(38)
+  const [calendarStatus, setCalendarStatus] = useState('unset') // 'unset' | 'uploading' | 'parsed' | 'defaulted' | 'error'
+  const [calendarSummary, setCalendarSummary] = useState(null)
+  const [calendarError, setCalendarError] = useState('')
 
   const load = useCallback((key, weeks) => {
     setLoading(true)
@@ -52,6 +55,44 @@ export default function YearPlanPage() {
   const total = periods.reduce((sum, p) => sum + Number(p.period_pct || 0), 0)
   const currentModel = CURRICULUM_MODELS.find((m) => m.key === modelKey)
 
+  async function handleCalendarUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setCalendarStatus('uploading')
+    setCalendarError('')
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/school-calendar', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not read that PDF')
+      setCalendarSummary(data.summary)
+      if (data.summary.daysOfInstruction) {
+        const weeks = Math.round(data.summary.daysOfInstruction / 5)
+        setWeeksAvailable(weeks)
+        load(modelKey, weeks)
+        setCalendarStatus('parsed')
+      } else {
+        setCalendarError("Found the file, but couldn't find a \"Days of instruction\" line in it — enter weeks manually below, or use \"I don't know\" for a rough default.")
+        setCalendarStatus('error')
+      }
+    } catch (err) {
+      setCalendarError(err.message)
+      setCalendarStatus('error')
+    }
+  }
+
+  function handleDontKnow() {
+    // Rough BC default (~36 instructional weeks / 180 days) -- not tied
+    // to any specific district, just a reasonable starting point until
+    // the real calendar is uploaded.
+    setWeeksAvailable(36)
+    load(modelKey, 36)
+    setCalendarStatus('defaulted')
+    setCalendarSummary(null)
+    setCalendarError('')
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: FONT_BODY, padding: 32 }}>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
@@ -81,14 +122,56 @@ export default function YearPlanPage() {
         </div>
 
         <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
-          <label style={{ fontSize: 13 }} title="Same value used on the Unit Priorities page — keep these in sync.">
-            Instructional weeks available this year
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 10 }}>Instructional weeks available this year</div>
+
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+            <label
+              title="Upload your district's school calendar PDF -- we'll read the \"Days of instruction\" line and calculate weeks for you."
+              style={{
+                display: 'inline-block', padding: '8px 16px', background: C.gold, color: '#fff', borderRadius: 8,
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              📅 Upload district calendar (PDF)
+              <input type="file" accept="application/pdf" onChange={handleCalendarUpload} style={{ display: 'none' }} />
+            </label>
+
+            <button
+              onClick={handleDontKnow}
+              title="Use a rough BC-wide default (36 weeks) until you upload your real calendar"
+              style={{
+                padding: '8px 16px', background: '#fff', color: C.navy, border: `1px solid ${C.border}`, borderRadius: 8,
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              I don't know
+            </button>
+          </div>
+
+          {calendarStatus === 'uploading' && <p style={{ fontSize: 12, color: '#888', margin: '0 0 10px' }}>Reading your calendar…</p>}
+          {calendarStatus === 'error' && <p style={{ fontSize: 12, color: '#a33', margin: '0 0 10px' }}>{calendarError}</p>}
+          {calendarStatus === 'parsed' && calendarSummary && (
+            <div style={{ fontSize: 12, color: '#1a7a3e', margin: '0 0 10px', background: '#eef8f0', padding: '8px 12px', borderRadius: 6 }}>
+              ✓ Found {calendarSummary.daysOfInstruction} instructional days → {weeksAvailable} weeks.
+              {calendarSummary.schoolOpening && ` Opens ${calendarSummary.schoolOpening}.`}
+              {calendarSummary.lastDayOfSchool && ` Last day ${calendarSummary.lastDayOfSchool}.`}
+            </div>
+          )}
+          {calendarStatus === 'defaulted' && (
+            <p style={{ fontSize: 12, color: '#888', margin: '0 0 10px' }}>
+              Using a rough default of 36 weeks — upload your real calendar above anytime to replace this.
+            </p>
+          )}
+
+          <label style={{ fontSize: 13 }} title="Same value used on the Unit Priorities page — keep these in sync. Auto-filled by the calendar upload above, but you can still edit it directly.">
+            Or enter manually:
             <input
               type="number" value={weeksAvailable}
               onChange={(e) => {
                 const v = Number(e.target.value)
                 setWeeksAvailable(v)
                 load(modelKey, v)
+                setCalendarStatus('unset')
               }}
               style={{ marginLeft: 10, width: 80, padding: 6, border: `1px solid ${C.border}`, borderRadius: 6 }}
             />
@@ -141,3 +224,4 @@ export default function YearPlanPage() {
     </div>
   )
 }
+
