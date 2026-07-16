@@ -89,6 +89,43 @@ export default function PreviousPlanPage() {
           {error && <p style={{ color: '#a33', fontSize: 13, marginTop: 12 }}>{error}</p>}
         </div>
 
+        {upload && (upload.inferred_grades?.length > 0 || upload.inferred_subjects?.length > 0 || upload.inferred_teaching_style_notes) && (
+          <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 20, marginBottom: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 10 }}>
+              Here's what we could tell from your plan
+            </div>
+            {upload.inferred_grades?.length > 0 && (
+              <p style={{ fontSize: 13, color: '#555', margin: '0 0 6px' }}>
+                <strong>Grade(s):</strong> {upload.inferred_grades.join(', ')}
+              </p>
+            )}
+            {upload.inferred_subjects?.length > 0 && (
+              <p style={{ fontSize: 13, color: '#555', margin: '0 0 6px' }}>
+                <strong>Subject(s):</strong> {upload.inferred_subjects.join(', ')}
+              </p>
+            )}
+            {upload.inferred_teaching_style_notes && (
+              <p style={{ fontSize: 13, color: '#555', margin: '0 0 14px' }}>
+                <strong>Teaching style notes:</strong> {upload.inferred_teaching_style_notes}
+              </p>
+            )}
+            {(upload.inferred_grades?.length > 0 || upload.inferred_subjects?.length > 0) && (
+              <a
+                href={`/class-setup?grades=${encodeURIComponent((upload.inferred_grades || []).join(','))}&subjects=${encodeURIComponent((upload.inferred_subjects || []).join(','))}`}
+                style={{
+                  display: 'inline-block', padding: '8px 18px', background: C.gold, color: '#fff', borderRadius: 6,
+                  fontWeight: 600, fontSize: 13, textDecoration: 'none',
+                }}
+              >
+                Use these for "What do you teach?" →
+              </a>
+            )}
+            <p style={{ fontSize: 11, color: '#999', marginTop: 10, marginBottom: 0 }}>
+              You'll be able to confirm or change any of this on the next page -- nothing is saved automatically.
+            </p>
+          </div>
+        )}
+
         {upload && (
           <a href="/generate?type=year" style={{
             display: 'inline-block', padding: '10px 24px', background: C.navy, color: '#fff', borderRadius: 8,
@@ -101,3 +138,4 @@ export default function PreviousPlanPage() {
     </div>
   )
 }
+
