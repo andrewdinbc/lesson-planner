@@ -29,7 +29,7 @@ export async function POST(request) {
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
 
   try {
-    const { url, title, category } = await request.json()
+    const { url, title, category, subject } = await request.json()
     if (!url) return Response.json({ error: 'url required' }, { status: 400 })
 
     let pageText
@@ -77,11 +77,13 @@ ${pageText}`
       char_count: fullText.length,
       source_url: url,
       source_type: 'web',
+      subject: subject || null,
     }])
 
-    return Response.json({ document: { id: doc.id, title: doc.title, category: doc.category, source_url: url, created_at: doc.created_at } })
+    return Response.json({ document: { id: doc.id, title: doc.title, category: doc.category, subject: doc.subject, source_url: url, created_at: doc.created_at } })
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
 
