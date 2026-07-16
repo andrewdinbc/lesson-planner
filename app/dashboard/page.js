@@ -52,11 +52,20 @@ function ActionCard({ href, emoji, title, desc, tooltip, number, skippable, comp
       <div style={{ textAlign: 'right', marginTop: 6 }}>
         <button
           onClick={async () => {
-            await fetch('/api/teacher-inventories', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ skipped: true }),
-            })
-            window.location.reload()
+            try {
+              const res = await fetch('/api/teacher-inventories', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ skipped: true }),
+              })
+              if (!res.ok) {
+                const data = await res.json().catch(() => ({}))
+                alert(`Couldn't skip: ${data.error || res.status}. Try refreshing the page and logging in again if this keeps happening.`)
+                return
+              }
+              window.location.reload()
+            } catch (e) {
+              alert(`Couldn't skip: ${e.message}`)
+            }
           }}
           style={{ fontSize: 12, color: '#999', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
         >
@@ -141,18 +150,22 @@ export default function Dashboard() {
           desc="4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach"
           tooltip="4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach." />
 
+        <ActionCard href="/class-setup" emoji="🏫" title="What do you teach?" number={2} completed={status.classSetup}
+          desc="Your grades and subjects — this needs to come before Year Plan"
+          tooltip="Your grades and subjects — this needs to come before Year Plan" />
+
         <h1 style={{ fontSize: 24, color: C.navy, margin: '28px 0 20px' }}>Plan your year</h1>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 40 }}>
-          <ActionCard href="/year-plan" emoji="🗓️" title="Year Plan" number={2} completed={status.yearPlan}
+          <ActionCard href="/year-plan" emoji="🗓️" title="Year Plan" number={3} completed={status.yearPlan}
             desc="Set your Year Structure lens and how much time each period gets"
             tooltip="Set your Year Structure lens and how much time each period gets" />
-          <ActionCard href="/units" emoji="🎯" title="Unit Priorities" number={3} completed={status.unitPriorities}
+          <ActionCard href="/units" emoji="🎯" title="Unit Priorities" number={4} completed={status.unitPriorities}
             desc="Set priority weighting for each unit within a subject"
             tooltip="Set priority weighting for each unit within a subject" />
-          <ActionCard href="/week" emoji="📅" title="Weekly Schedule" number={4} completed={status.weeklySchedule}
+          <ActionCard href="/week" emoji="📅" title="Weekly Schedule" number={5} completed={status.weeklySchedule}
             desc="Build your weekly class schedule with fixed blocks"
             tooltip="Build your weekly class schedule with fixed blocks" />
-          <ActionCard href="/resources" emoji="🔗" title="Your Resources" number={5} completed={status.resources}
+          <ActionCard href="/resources" emoji="🔗" title="Your Resources" number={6} completed={status.resources}
             desc="Add sites and materials you like so the AI can reference them"
             tooltip="Add sites and materials you like so the AI can reference them" />
         </div>
@@ -227,6 +240,7 @@ export default function Dashboard() {
     </div>
   )
 }
+
 
 
 
