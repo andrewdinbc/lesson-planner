@@ -50,9 +50,18 @@ function ActionCard({ href, emoji, title, desc, tooltip, number, skippable, comp
     <div>
       {wrapped}
       <div style={{ textAlign: 'right', marginTop: 6 }}>
-        <Link href="/dashboard?skip=inventories" style={{ fontSize: 12, color: '#999', textDecoration: 'underline' }}>
+        <button
+          onClick={async () => {
+            await fetch('/api/teacher-inventories', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ skipped: true }),
+            })
+            window.location.reload()
+          }}
+          style={{ fontSize: 12, color: '#999', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
           Skip for now
-        </Link>
+        </button>
       </div>
     </div>
   )
@@ -218,6 +227,7 @@ export default function Dashboard() {
     </div>
   )
 }
+
 
 
 
