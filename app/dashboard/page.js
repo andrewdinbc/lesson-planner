@@ -9,37 +9,42 @@ import { COLORS as C, FONT_BODY, FONT_BRAND } from '@/lib/theme'
 // cards) so the two apps read as one ecosystem -- same structure, same
 // exact color tokens, same fonts (see lib/theme.js).
 
-function ActionCard({ href, emoji, title, desc, tooltip, number, skippable }) {
+function ActionCard({ href, emoji, title, desc, tooltip, number, skippable, completed }) {
   const card = (
     <Link href={href} style={{
-      display: 'flex', alignItems: 'center', gap: 16, background: C.card, border: `1px solid ${C.border}`,
+      display: 'flex', alignItems: 'center', gap: 16,
+      background: completed ? '#f5f5f2' : C.card, border: `1px solid ${C.border}`,
       borderRadius: 12, padding: 20, textDecoration: 'none', flex: 1, minWidth: 260, position: 'relative',
+      opacity: completed ? 0.65 : 1,
     }}>
       {number != null && (
         <div style={{
           position: 'absolute', top: -10, left: -10, width: 26, height: 26, borderRadius: '50%',
-          background: C.navy, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: completed ? C.green : C.navy, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 13, fontWeight: 700,
         }}>
-          {number}
+          {completed ? '✓' : number}
         </div>
       )}
       <div style={{
         width: 44, height: 44, borderRadius: 10, background: C.bg, display: 'flex',
         alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0,
+        filter: completed ? 'grayscale(1)' : 'none',
       }}>
         {emoji}
       </div>
       <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 700, color: '#1a1a1a', fontSize: 16, marginBottom: 3 }}>{title}</div>
-        <div style={{ fontSize: 13, color: '#888' }}>{desc}</div>
+        <div style={{ fontWeight: 700, color: completed ? '#888' : '#1a1a1a', fontSize: 16, marginBottom: 3 }}>
+          {title}{completed ? ' — Done' : ''}
+        </div>
+        <div style={{ fontSize: 13, color: '#999' }}>{desc}</div>
       </div>
       <span style={{ color: '#bbb', fontSize: 18 }}>›</span>
     </Link>
   )
   const wrapped = tooltip ? <Tooltip text={tooltip} position="top">{card}</Tooltip> : card
 
-  if (!skippable) return wrapped
+  if (!skippable || completed) return wrapped
 
   return (
     <div>
@@ -56,6 +61,7 @@ function ActionCard({ href, emoji, title, desc, tooltip, number, skippable }) {
 export default function Dashboard() {
   const [units, setUnits] = useState([])
   const [loading, setLoading] = useState(true)
+  const [status, setStatus] = useState({})
   const supabase = createClient()
 
   useEffect(() => {
@@ -68,6 +74,11 @@ export default function Dashboard() {
       setLoading(false)
     }
     fetchUnits()
+
+    fetch('/api/dashboard-status')
+      .then((res) => res.ok ? res.json() : {})
+      .then(setStatus)
+      .catch(() => {})
   }, [])
 
   const handleDelete = async (id) => {
@@ -117,22 +128,22 @@ export default function Dashboard() {
 
       {/* Main */}
       <div style={{ flex: 1, padding: 40, maxWidth: 1100 }}>
-        <ActionCard href="/inventories" emoji="📋" title="Tell us about your teaching style" number={1} skippable
+        <ActionCard href="/inventories" emoji="📋" title="Tell us about your teaching style" number={1} skippable completed={status.inventories}
           desc="4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach"
           tooltip="4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach." />
 
         <h1 style={{ fontSize: 24, color: C.navy, margin: '28px 0 20px' }}>Plan your year</h1>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 40 }}>
-          <ActionCard href="/year-plan" emoji="🗓️" title="Year Plan" number={2}
+          <ActionCard href="/year-plan" emoji="🗓️" title="Year Plan" number={2} completed={status.yearPlan}
             desc="Set your Year Structure lens and how much time each period gets"
             tooltip="Set your Year Structure lens and how much time each period gets" />
-          <ActionCard href="/units" emoji="🎯" title="Unit Priorities" number={3}
+          <ActionCard href="/units" emoji="🎯" title="Unit Priorities" number={3} completed={status.unitPriorities}
             desc="Set priority weighting for each unit within a subject"
             tooltip="Set priority weighting for each unit within a subject" />
-          <ActionCard href="/week" emoji="📅" title="Weekly Schedule" number={4}
+          <ActionCard href="/week" emoji="📅" title="Weekly Schedule" number={4} completed={status.weeklySchedule}
             desc="Build your weekly class schedule with fixed blocks"
             tooltip="Build your weekly class schedule with fixed blocks" />
-          <ActionCard href="/resources" emoji="🔗" title="Your Resources" number={5}
+          <ActionCard href="/resources" emoji="🔗" title="Your Resources" number={5} completed={status.resources}
             desc="Add sites and materials you like so the AI can reference them"
             tooltip="Add sites and materials you like so the AI can reference them" />
         </div>
@@ -207,5 +218,6 @@ export default function Dashboard() {
     </div>
   )
 }
+
 
 
