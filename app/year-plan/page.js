@@ -126,7 +126,7 @@ export default function YearPlanPage() {
 
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
             <label
-              title="Upload your district's school calendar PDF -- we'll read the \"Days of instruction\" line and calculate weeks for you."
+              title={`Upload your district's school calendar PDF -- we'll read the "Days of instruction" line and calculate weeks for you.`}
               style={{
                 display: 'inline-block', padding: '8px 16px', background: C.gold, color: '#fff', borderRadius: 8,
                 fontSize: 13, fontWeight: 600, cursor: 'pointer',
@@ -224,4 +224,5 @@ export default function YearPlanPage() {
     </div>
   )
 }
+
 
