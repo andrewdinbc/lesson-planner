@@ -165,7 +165,7 @@ export default function Dashboard() {
           <ActionCard href="/week" emoji="📅" title="Weekly Schedule" number={5} completed={status.weeklySchedule}
             desc="Build your weekly class schedule with fixed blocks"
             tooltip="Build your weekly class schedule with fixed blocks" />
-          <ActionCard href="/resources" emoji="🔗" title="Your Resources" number={6} completed={status.resources}
+          <ActionCard href="/resources" emoji="🔗" title="Add Additional Resources" number={6} completed={status.resources}
             desc="Add sites and materials you like so the AI can reference them"
             tooltip="Add sites and materials you like so the AI can reference them" />
         </div>
@@ -240,6 +240,7 @@ export default function Dashboard() {
     </div>
   )
 }
+
 
 
 
