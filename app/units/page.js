@@ -15,6 +15,25 @@ export default function UnitsPage() {
   // calendar (from the Year Plan page) is available, which always wins.
   const [weeksAvailable, setWeeksAvailable] = useState(36)
   const [weeksSource, setWeeksSource] = useState('default') // 'default' | 'calendar'
+  const [populating, setPopulating] = useState(false)
+  const [populateResult, setPopulateResult] = useState(null)
+  const [expandedCompetency, setExpandedCompetency] = useState({}) // `${subject}::${unit_name}` -> bool
+
+  async function populateFromCurriculum() {
+    setPopulating(true)
+    setPopulateResult(null)
+    try {
+      const res = await fetch('/api/unit-priorities/populate-from-curriculum', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to populate from curriculum')
+      setUnits(data.units || [])
+      setPopulateResult(data.results)
+    } catch (e) {
+      setPopulateResult({ error: e.message })
+    } finally {
+      setPopulating(false)
+    }
+  }
 
   useEffect(() => {
     fetch('/api/unit-priorities')
@@ -71,6 +90,32 @@ export default function UnitsPage() {
           All units start at equal priority. Raise a slider to give a unit more time this year (e.g. Fractions or Algebra typically need more than others). Uncheck a unit to remove it from this year's plan.
         </p>
 
+        <div style={{ marginBottom: 16 }}>
+          <button
+            onClick={populateFromCurriculum} disabled={populating}
+            title="Pulls real content from curriculum.gov.bc.ca for your grade(s) and groups it into units automatically -- for Language Arts, Math, Science, and Social Studies. Split grades are supported: content from every grade you teach gets combined."
+            style={{
+              padding: '10px 20px', background: C.navy, color: '#fff', border: 'none', borderRadius: 6,
+              fontWeight: 600, fontSize: 13, cursor: populating ? 'not-allowed' : 'pointer', opacity: populating ? 0.6 : 1,
+            }}
+          >
+            {populating ? 'Pulling from BC Curriculum…' : '📖 Populate from BC Curriculum'}
+          </button>
+          {populateResult?.error && (
+            <p style={{ fontSize: 12, color: '#a33', marginTop: 8 }}>{populateResult.error}</p>
+          )}
+          {populateResult?.populated && (
+            <div style={{ fontSize: 12, color: '#1a7a3e', marginTop: 8 }}>
+              ✓ {populateResult.populated.map((p) => `${p.subject} (${p.unitCount} units, grade${p.grades.length > 1 ? 's' : ''} ${p.grades.join('/')})`).join(', ')}
+              {populateResult.skipped?.length > 0 && (
+                <div style={{ color: '#a67c00', marginTop: 4 }}>
+                  Skipped: {populateResult.skipped.map((s) => `${s.subject} (${s.reason})`).join('; ')}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {mismatch && (
           <div style={{ background: '#fdf3e3', border: '1px solid #e8c88a', borderRadius: 8, padding: 14, marginBottom: 16, fontSize: 13, color: '#7a5a1e' }}>
             ⚠️ {mismatch.message}
@@ -94,18 +139,43 @@ export default function UnitsPage() {
                   </label>
                 )}
               </div>
-              {subjectUnits.map((u) => (
-                <div key={u.unit_name} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, opacity: u.removed ? 0.4 : 1 }}>
-                  <input type="checkbox" checked={!u.removed} onChange={(e) => updateUnit(subject, u.unit_name, 'removed', !e.target.checked)} />
-                  <span style={{ flex: 1, fontSize: 14 }}>{u.unit_name}</span>
-                  <input
-                    type="range" min="0.25" max="3" step="0.25" value={u.priority} disabled={u.removed}
-                    onChange={(e) => updateUnit(subject, u.unit_name, 'priority', Number(e.target.value))}
-                    style={{ width: 140 }}
-                  />
-                  <span style={{ fontSize: 12, color: '#888', width: 32 }}>{u.priority}×</span>
-                </div>
-              ))}
+              {subjectUnits.map((u) => {
+                const key = `${subject}::${u.unit_name}`
+                const isExpanded = expandedCompetency[key]
+                return (
+                  <div key={u.unit_name} style={{ marginBottom: 10, opacity: u.removed ? 0.4 : 1, borderBottom: `1px solid ${C.border}`, paddingBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <input type="checkbox" checked={!u.removed} onChange={(e) => updateUnit(subject, u.unit_name, 'removed', !e.target.checked)} />
+                      <span
+                        style={{ flex: 1, fontSize: 14, cursor: u.content_summary ? 'help' : 'default', textDecoration: u.content_summary ? 'underline dotted' : 'none' }}
+                        title={u.content_summary || undefined}
+                      >
+                        {u.unit_name}
+                        {u.grades?.length > 0 && <span style={{ fontSize: 11, color: '#999', marginLeft: 6 }}>(Gr. {u.grades.join('/')})</span>}
+                      </span>
+                      <input
+                        type="range" min="0.25" max="3" step="0.25" value={u.priority} disabled={u.removed}
+                        onChange={(e) => updateUnit(subject, u.unit_name, 'priority', Number(e.target.value))}
+                        style={{ width: 140 }}
+                      />
+                      <span style={{ fontSize: 12, color: '#888', width: 32 }}>{u.priority}×</span>
+                    </div>
+                    {u.curricular_competency && (
+                      <div style={{ marginLeft: 30, marginTop: 4 }}>
+                        <button
+                          onClick={() => setExpandedCompetency((prev) => ({ ...prev, [key]: !prev[key] }))}
+                          style={{ background: 'none', border: 'none', color: C.navy, fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                        >
+                          {isExpanded ? '▾ Hide' : '▸ Show'} Curricular Competency
+                        </button>
+                        {isExpanded && (
+                          <p style={{ fontSize: 12, color: '#666', marginTop: 4, whiteSpace: 'pre-wrap' }}>{u.curricular_competency}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )
         })}
@@ -133,4 +203,5 @@ export default function UnitsPage() {
     </div>
   )
 }
+
 
