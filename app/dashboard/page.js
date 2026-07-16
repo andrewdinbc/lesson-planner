@@ -9,7 +9,7 @@ import { COLORS as C, FONT_BODY, FONT_BRAND } from '@/lib/theme'
 // cards) so the two apps read as one ecosystem -- same structure, same
 // exact color tokens, same fonts (see lib/theme.js).
 
-function ActionCard({ href, emoji, title, desc, tooltip, number, skippable, completed }) {
+function ActionCard({ href, emoji, title, desc, tooltip, number, skippable, completed, skipStepKey }) {
   const card = (
     <Link href={href} style={{
       display: 'flex', alignItems: 'center', gap: 16,
@@ -53,9 +53,14 @@ function ActionCard({ href, emoji, title, desc, tooltip, number, skippable, comp
         <button
           onClick={async () => {
             try {
-              const res = await fetch('/api/teacher-inventories', {
+              // Inventories has its own dedicated skipped column (predates
+              // the generic mechanism); everything else uses the generic
+              // teacher_step_skips endpoint via skipStepKey.
+              const url = skipStepKey ? '/api/skip-step' : '/api/teacher-inventories'
+              const body = skipStepKey ? { stepKey: skipStepKey } : { skipped: true }
+              const res = await fetch(url, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ skipped: true }),
+                body: JSON.stringify(body),
               })
               if (!res.ok) {
                 const data = await res.json().catch(() => ({}))
@@ -150,7 +155,7 @@ export default function Dashboard() {
           desc="4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach"
           tooltip="4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach." />
 
-        <ActionCard href="/class-setup" emoji="🏫" title="What do you teach?" number={2} completed={status.classSetup}
+        <ActionCard href="/class-setup" emoji="🏫" title="What do you teach?" number={2} completed={status.classSetup} skippable skipStepKey="class_setup"
           desc="Your grades and subjects — this needs to come before Year Plan"
           tooltip="Your grades and subjects — this needs to come before Year Plan" />
 
@@ -159,7 +164,7 @@ export default function Dashboard() {
           <ActionCard href="/year-plan" emoji="🗓️" title="Year Plan" number={3} completed={status.yearPlan}
             desc="Set your Year Structure lens and how much time each period gets"
             tooltip="Set your Year Structure lens and how much time each period gets" />
-          <ActionCard href="/units" emoji="🎯" title="Unit Priorities" number={4} completed={status.unitPriorities}
+          <ActionCard href="/units" emoji="🎯" title="Unit Priorities" number={4} completed={status.unitPriorities} skippable skipStepKey="unit_priorities"
             desc="Set priority weighting for each unit within a subject"
             tooltip="Set priority weighting for each unit within a subject" />
           <ActionCard href="/week" emoji="📅" title="Weekly Schedule" number={5} completed={status.weeklySchedule}
@@ -240,6 +245,7 @@ export default function Dashboard() {
     </div>
   )
 }
+
 
 
 
