@@ -361,12 +361,12 @@ export default function InventoriesPage() {
       {step === 3 && (
         <div style={box}>
           <h2 style={{ color: C.navy, fontSize: 16 }}>3. Philosophy of Education</h2>
-          <p style={{ color: C.muted, fontSize: 13, marginBottom: 16 }}>Agree, Neutral, or Disagree.</p>
+          <p style={{ color: C.muted, fontSize: 13, marginBottom: 16 }}>Disagree, Neutral, or Agree.</p>
           {PHILOSOPHY_ITEMS.map((item, i) => (
             <div key={i} style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 14, marginBottom: 4 }}>{item.text}</div>
               <div style={{ display: 'flex', gap: 8 }}>
-                {['Agree', 'Neutral', 'Disagree'].map(opt => (
+                {['Disagree', 'Neutral', 'Agree'].map(opt => (
                   <button key={opt} onClick={() => setPhil(s => ({ ...s, [i]: opt }))}
                     style={{ padding: '5px 12px', borderRadius: 6, border: `1px solid ${C.border}`, background: phil[i] === opt ? C.navy : '#fff', color: phil[i] === opt ? '#fff' : C.navy, cursor: 'pointer', fontSize: 12 }}>
                     {opt}
@@ -727,6 +727,7 @@ export default function InventoriesPage() {
     </div>
   )
 }
+
 
 
 
