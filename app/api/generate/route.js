@@ -27,7 +27,7 @@ export async function POST(request) {
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
 
   try {
-    const { type, title, subject, grade, theme, numProjects, numWorksheets, parentId, steeringDocIds, weekNumber } = await request.json()
+    const { type, title, subject, grade, theme, numProjects, numWorksheets, parentId, steeringDocIds, weekNumber, usePreviousPlan } = await request.json()
     if (!type || !TYPE_GUIDANCE[type]) return Response.json({ error: 'Valid type required (year/month/week/day/lesson)' }, { status: 400 })
 
     let parentContext = ''
@@ -226,6 +226,19 @@ export async function POST(request) {
       // year-structure framing rather than blocking entirely.
     }
 
+    // Optional: adapt the teacher's own previously-uploaded plan instead
+    // of generating from a blank slate. See app/previous-plan/page.js and
+    // app/api/previous-plan/route.js -- experienced teachers often already
+    // have a plan from a prior year and just want it updated/modified,
+    // not replaced with something generic.
+    let previousPlanContext = ''
+    if (usePreviousPlan) {
+      const [upload] = await sbSelect('previous_plan_uploads', `?user_id=eq.${user.id}&select=extracted_text&limit=1`)
+      if (upload?.extracted_text) {
+        previousPlanContext = `\n\nTHE TEACHER'S EXISTING PLAN TO ADAPT -- this is a real plan they already used. Your job is to MODIFY and UPDATE it to fit this year's specifics (dates, any new grouping/lens, this teacher's current context), not throw it away and write something generic from scratch. Preserve what's genuinely good about their existing approach; only change what actually needs to change:\n${upload.extracted_text.slice(0, 15000)}`
+      }
+    }
+
     const prompt = `Generate ${TYPE_GUIDANCE[type]}.
 
 Title: ${title}
@@ -235,7 +248,7 @@ Theme: ${theme || 'not specified'}
 ${numProjects ? `Number of hands-on projects: ${numProjects}` : ''}
 ${numWorksheets ? `Number of worksheets: ${numWorksheets}` : ''}
 ${parentContext}
-${steeringContext}${resourcesContext}${yearStructureContext}${classContext}${profileContext}${bcCurriculumContext}${pacingContext}
+${steeringContext}${resourcesContext}${previousPlanContext}${yearStructureContext}${classContext}${profileContext}${bcCurriculumContext}${pacingContext}
 
 Return the plan content as clean, well-structured Markdown suitable for direct display and .txt export.`
 
@@ -258,6 +271,7 @@ Return the plan content as clean, well-structured Markdown suitable for direct d
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
 
 
 
