@@ -20,6 +20,25 @@ export default function UnitsPage() {
   // 'checking' | 'missing' | 'present' | 'skipped-by-user'
   const [classSetupStatus, setClassSetupStatus] = useState('checking')
   const [expandedCompetency, setExpandedCompetency] = useState({}) // `${subject}::${unit_name}` -> bool
+  const [feedbackText, setFeedbackText] = useState('')
+  const [feedbackStatus, setFeedbackStatus] = useState('idle') // 'idle' | 'sending' | 'sent' | 'error'
+
+  async function submitFeedback() {
+    if (!feedbackText.trim()) return
+    setFeedbackStatus('sending')
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestText: feedbackText, pageContext: 'unit-priorities' }),
+      })
+      if (!res.ok) throw new Error('Failed to send')
+      setFeedbackText('')
+      setFeedbackStatus('sent')
+      setTimeout(() => setFeedbackStatus('idle'), 4000)
+    } catch {
+      setFeedbackStatus('error')
+    }
+  }
 
   async function populateFromCurriculum() {
     setPopulating(true)
@@ -170,6 +189,34 @@ export default function UnitsPage() {
               )}
             </div>
           )}
+
+          <div style={{ marginTop: 12, background: '#fff', border: `1px solid ${C.border}`, borderRadius: 8, padding: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 6 }}>
+              Something missing or not quite right?
+            </div>
+            <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px' }}>
+              Tell us what's off (e.g. "missing my Grade 5 fractions unit") -- this goes straight to Aj so it can be reviewed and improved.
+            </p>
+            <textarea
+              value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} rows="2"
+              placeholder="Describe what should be added or fixed…"
+              style={{ width: '100%', padding: 8, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: 'inherit', fontSize: 13, boxSizing: 'border-box', resize: 'vertical' }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+              <button
+                onClick={submitFeedback} disabled={feedbackStatus === 'sending' || !feedbackText.trim()}
+                style={{
+                  padding: '6px 16px', background: C.gold, color: '#fff', border: 'none', borderRadius: 6,
+                  fontSize: 12, fontWeight: 600, cursor: feedbackText.trim() ? 'pointer' : 'not-allowed',
+                  opacity: feedbackText.trim() ? 1 : 0.5,
+                }}
+              >
+                {feedbackStatus === 'sending' ? 'Sending…' : 'Send Feedback'}
+              </button>
+              {feedbackStatus === 'sent' && <span style={{ fontSize: 12, color: '#1a7a3e' }}>✓ Sent — thank you!</span>}
+              {feedbackStatus === 'error' && <span style={{ fontSize: 12, color: '#a33' }}>Couldn't send — try again.</span>}
+            </div>
+          </div>
         </div>
 
         {mismatch && (
@@ -250,3 +297,4 @@ export default function UnitsPage() {
     </div>
   )
 }
+
