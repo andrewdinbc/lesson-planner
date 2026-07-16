@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { sbSelect, sbInsert } from '../../../lib/supabase'
 import { getCurrentUser } from '../../../lib/session'
 import { STEERING_CATEGORIES, STEERING_CATEGORY_MAP } from '../../../lib/steering-categories'
+import { buildSteeringContext } from '../../../lib/steering-context'
 import { getCurriculum, focusForModel } from '../../../lib/bc-curriculum'
 
 export const runtime = 'nodejs'
@@ -37,58 +38,12 @@ export async function POST(request) {
     // Steering documents are organized into three categories, each playing
     // a distinct role in generation (see lib/steering-categories.js) rather
     // than being dumped in as one undifferentiated pile of background text.
-    // Full books (100+ pages) get a much larger per-document budget than
-    // the old flat 8000-char cap so the author's actual approach comes
-    // through - a combined ceiling across all selected docs still guards
-    // against blowing the prompt budget when several are selected at once.
-    // Steering documents are global background context set by Aj — they
-    // ground every generation for every account automatically. Teachers
-    // never see or pick these; there is no per-user scoping and no
-    // steeringDocIds selection step.
-    let steeringContext = ''
-    {
-      const docs = await sbSelect('steering_documents', `?select=title,author,category,full_text`)
-
-      if (docs.length) {
-        const PER_DOC_MAX = 45000
-        const TOTAL_MAX = 150000
-        let remaining = TOTAL_MAX
-
-        const byCategory = {}
-        for (const cat of STEERING_CATEGORIES) byCategory[cat.key] = []
-        for (const doc of docs) {
-          const key = STEERING_CATEGORY_MAP[doc.category] ? doc.category : 'actionable_resources'
-          byCategory[key].push(doc)
-        }
-
-        const sections = []
-        for (const cat of STEERING_CATEGORIES) {
-          const catDocs = byCategory[cat.key]
-          if (!catDocs.length || remaining <= 0) continue
-
-          const docTexts = catDocs.map((d) => {
-            const budget = Math.min(PER_DOC_MAX, remaining)
-            const excerpt = d.full_text.slice(0, budget)
-            remaining -= excerpt.length
-            const truncatedNote = d.full_text.length > excerpt.length
-              ? `\n[...excerpt continues beyond what fit here; treat this as representative of the whole work's approach, not a complete transcript...]`
-              : ''
-            const byline = d.author ? ` by ${d.author}` : ''
-            return `--- "${d.title}"${byline} ---\n${excerpt}${truncatedNote}`
-          }).join('\n\n')
-
-          sections.push(
-            `### ${cat.label}\n(How to use this: ${cat.promptRole})\n\n${docTexts}`
-          )
-        }
-
-        if (sections.length) {
-          steeringContext = '\n\nBACKGROUND SOURCE MATERIAL — organized by role, ground your output in these ' +
-            'and do not contradict them. Each category below is meant to inform a different part of the plan, ' +
-            'as described under its heading:\n\n' + sections.join('\n\n')
-        }
-      }
-    }
+    // Steering documents are global background context set by Aj — see
+    // lib/steering-context.js for the shared builder (also used by
+    // /api/steering-documents/context, the cross-app endpoint other
+    // Chalk & Circuit products call to get the same content). Teachers
+    // never see or pick these; there is no per-user scoping.
+    const steeringContext = await buildSteeringContext()
 
     // Teacher's own Resources -- separate system from admin steering docs
     // above. Each teacher can add links/notes to things they personally
@@ -255,6 +210,7 @@ Return the plan content as clean, well-structured Markdown suitable for direct d
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
 
 
 
