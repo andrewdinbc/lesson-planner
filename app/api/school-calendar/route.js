@@ -14,55 +14,28 @@ export const maxDuration = 60
 // lines with unrelated content between them, because the PDF is a
 // two-column layout (calendar grid + stats sidebar) and pdf-parse
 // doesn't reconstruct visual columns. A naive adjacent-text regex finds
-// nothing on documents like this.
-//
-// Strategy: try the cheap regex first (works fine on simpler/single-
-// column PDFs). If it comes up empty on the fields that matter most
-// (daysOfInstruction), fall back to asking Claude to read the raw
-// extracted text and pull out the same fields -- much more robust to
-// text-order scrambling since it's reading for meaning, not position.
-function parseSummaryRegex(text) {
-  const grab = (label) => {
-    const m = text.match(new RegExp(`${label}\\s*[:\\-]?\\s*(\\d+)`, 'i'))
-    return m ? parseInt(m[1], 10) : null
-  }
-  const grabRange = (label) => {
-    const m = text.match(new RegExp(`${label}\\s*[:\\-]?\\s*([A-Za-z]+\\.?\\s*\\d{1,2}(?:\\s*-\\s*[A-Za-z]*\\.?\\s*\\d{1,2})?)`, 'i'))
-    return m ? m[1].trim() : null
-  }
-
-  return {
-    daysInSession: grab('Days in session'),
-    daysOfInstruction: grab('Days of instruction'),
-    proDDays: grab('Pro-D days'),
-    administrativeDays: grab('Administrative days'),
-    instructionalHoursElementary: grab('Elementary'),
-    instructionalHoursSecondary: grab('Secondary'),
-    schoolOpening: grabRange('School Opening'),
-    lastDayOfSchool: grabRange('Last day of school'),
-    winterVacation: grabRange('Winter Vacation'),
-    springVacation: grabRange('Spring Vacation'),
-  }
-}
-
-async function parseSummaryWithAI(text) {
+// nothing on documents like this -- so this route asks Claude to read
+// the whole extracted text and return real ISO dates (it can infer the
+// school year from the document title/header, e.g. "School Calendar
+// 2025-26", even though "Sept. 2" alone has no year attached).
+async function parseWithAI(text) {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  const prompt = `This is raw text extracted from a school district calendar PDF. The extraction process may have scrambled the visual layout, so labels and their numbers might not be adjacent in the text -- read the whole thing for meaning, not just nearby-text matching.
+  const prompt = `This is raw text extracted from a school district calendar PDF (likely BC, Canada). The extraction may have scrambled the visual layout -- labels and numbers might not be adjacent in the text. Read the whole thing for meaning.
 
-Find these values if present anywhere in the text (they're usually in a legend/summary box on the calendar):
-- Days in session (total, a number like 187)
-- Days of instruction (a number like 180 -- this is the important one, smaller than "days in session" since it excludes Pro-D/admin days)
-- Pro-D days (a small number like 6)
-- Administrative days (a small number like 1)
-- Instructional hours, elementary (a number like 878)
-- Instructional hours, secondary (a number like 957)
-- School Opening date
+Find, if present anywhere in the text:
+- The school year this calendar covers (e.g. "2025-26" is often in the title/header)
+- Days of instruction (a number, typically 175-185 for BC)
+- Days in session (a number, typically 185-190)
+- Pro-D days, Administrative days (small numbers)
+- Instructional hours, elementary and secondary
+- School Opening date (first instructional day)
 - Last day of school date
-- Winter Vacation date range
-- Spring Vacation date range
+- Winter Vacation and Spring Vacation date ranges
+
+For School Opening and Last day of school, output REAL ISO dates (YYYY-MM-DD), inferring the year from the school-year title (a "Sept" date uses the first year, a "June" date uses the second year of a "2025-26"-style title).
 
 Respond with ONLY a JSON object, no other text, no markdown fences:
-{"daysInSession": number|null, "daysOfInstruction": number|null, "proDDays": number|null, "administrativeDays": number|null, "instructionalHoursElementary": number|null, "instructionalHoursSecondary": number|null, "schoolOpening": string|null, "lastDayOfSchool": string|null, "winterVacation": string|null, "springVacation": string|null}
+{"schoolYear": string|null, "daysInSession": number|null, "daysOfInstruction": number|null, "proDDays": number|null, "administrativeDays": number|null, "instructionalHoursElementary": number|null, "instructionalHoursSecondary": number|null, "schoolOpeningDate": "YYYY-MM-DD"|null, "lastDayDate": "YYYY-MM-DD"|null, "winterVacation": string|null, "springVacation": string|null}
 
 TEXT:
 ${text.slice(0, 8000)}`
@@ -74,6 +47,28 @@ ${text.slice(0, 8000)}`
   })
   const raw = response.content[0].type === 'text' ? response.content[0].text : '{}'
   return JSON.parse(raw.replace(/```json|```/g, '').trim())
+}
+
+// Cheap regex pass first -- works fine on simpler single-column PDFs and
+// costs nothing. Only reaches for the AI call when this comes up empty.
+function parseSummaryRegex(text) {
+  const grab = (label) => {
+    const m = text.match(new RegExp(`${label}\\s*[:\\-]?\\s*(\\d+)`, 'i'))
+    return m ? parseInt(m[1], 10) : null
+  }
+  return {
+    daysInSession: grab('Days in session'),
+    daysOfInstruction: grab('Days of instruction'),
+    proDDays: grab('Pro-D days'),
+    administrativeDays: grab('Administrative days'),
+    instructionalHoursElementary: grab('Elementary'),
+    instructionalHoursSecondary: grab('Secondary'),
+    schoolOpeningDate: null,
+    lastDayDate: null,
+    winterVacation: null,
+    springVacation: null,
+    schoolYear: null,
+  }
 }
 
 export async function POST(request) {
@@ -96,16 +91,17 @@ export async function POST(request) {
     let summary = parseSummaryRegex(extracted.text)
     let parseMethod = 'regex'
 
-    if (!summary.daysOfInstruction) {
-      try {
-        summary = await parseSummaryWithAI(extracted.text)
-        parseMethod = 'ai'
-      } catch (e) {
-        // AI fallback itself failed -- return what regex found (likely
-        // mostly nulls) rather than a hard error, so the teacher can
-        // still enter weeks manually with a clear signal why.
-        parseMethod = 'failed'
-      }
+    // Regex never finds dates (deliberately not attempted -- too fragile
+    // for date text), so always use AI when we need real dates, unless
+    // the regex pass already found daysOfInstruction AND that's genuinely
+    // enough for this teacher's purposes. In practice: always try AI
+    // first for dates since that's the primary UI input now.
+    try {
+      const aiResult = await parseWithAI(extracted.text)
+      summary = { ...summary, ...aiResult }
+      parseMethod = 'ai'
+    } catch (e) {
+      parseMethod = summary.daysOfInstruction ? 'regex-only' : 'failed'
     }
 
     const existing = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=id&limit=1`)
