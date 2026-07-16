@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { sbInsert } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/session'
 import { DEFAULT_CATEGORY } from '@/lib/steering-categories'
+import { checkLink } from '@/lib/link-check'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -31,6 +32,19 @@ export async function POST(request) {
   try {
     const { url, title, category, subject } = await request.json()
     if (!url) return Response.json({ error: 'url required' }, { status: 400 })
+
+    // Real link check before doing anything else -- reject broken links
+    // outright rather than silently adding a dead source. This is a
+    // separate, purpose-built check (see lib/link-check.js) from the
+    // scrape-for-content fetch below, so a broken link fails fast with a
+    // clear reason instead of surfacing as a confusing scrape error.
+    const linkCheck = await checkLink(url)
+    if (!linkCheck.ok) {
+      return Response.json({
+        error: `Link check failed (${linkCheck.error}) -- this URL doesn't appear to be working. Double-check it and try again.`,
+        linkCheck,
+      }, { status: 422 })
+    }
 
     let pageText
     try {
@@ -78,12 +92,16 @@ ${pageText}`
       source_url: url,
       source_type: 'web',
       subject: subject || null,
+      link_status: 'ok',
+      http_status_code: linkCheck.statusCode,
+      last_checked_at: new Date().toISOString(),
     }])
 
-    return Response.json({ document: { id: doc.id, title: doc.title, category: doc.category, subject: doc.subject, source_url: url, created_at: doc.created_at } })
+    return Response.json({ document: { id: doc.id, title: doc.title, category: doc.category, subject: doc.subject, source_url: url, created_at: doc.created_at, linkCheck } })
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
 
 
