@@ -9,13 +9,33 @@ export default function UnitsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [mismatch, setMismatch] = useState(null)
-  const [weeksAvailable, setWeeksAvailable] = useState(38)
+  // Default of 36 weeks matches a real BC district calendar (Cowichan
+  // Valley SD, 2025-26: 180 instructional days / 5) rather than an
+  // arbitrary round number -- used only until the teacher's own uploaded
+  // calendar (from the Year Plan page) is available, which always wins.
+  const [weeksAvailable, setWeeksAvailable] = useState(36)
+  const [weeksSource, setWeeksSource] = useState('default') // 'default' | 'calendar'
 
   useEffect(() => {
     fetch('/api/unit-priorities')
       .then((r) => r.json())
       .then((d) => setUnits(d.units || []))
       .finally(() => setLoading(false))
+
+    // Same source of truth as the Year Plan page's calendar upload --
+    // teacher_inventories.school_calendar_summary. If they've already
+    // uploaded their real district calendar there, use it here too
+    // instead of duplicating the upload UI on this page.
+    fetch('/api/teacher-inventories')
+      .then((r) => r.json())
+      .then((d) => {
+        const days = d.inventory?.school_calendar_summary?.daysOfInstruction
+        if (days) {
+          setWeeksAvailable(Math.round(days / 5))
+          setWeeksSource('calendar')
+        }
+      })
+      .catch(() => {})
   }, [])
 
   const bySubject = units.reduce((acc, u) => {
@@ -93,9 +113,17 @@ export default function UnitsPage() {
         <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
           <label style={{ fontSize: 13 }}>
             Instructional weeks available this year
-            <input type="number" value={weeksAvailable} onChange={(e) => setWeeksAvailable(Number(e.target.value))}
-              style={{ marginLeft: 10, width: 80, padding: 6, border: `1px solid ${C.border}`, borderRadius: 6 }} />
+            <input
+              type="number" value={weeksAvailable}
+              onChange={(e) => { setWeeksAvailable(Number(e.target.value)); setWeeksSource('manual') }}
+              style={{ marginLeft: 10, width: 80, padding: 6, border: `1px solid ${C.border}`, borderRadius: 6 }}
+            />
           </label>
+          <p style={{ fontSize: 11, color: '#999', margin: '6px 0 0' }}>
+            {weeksSource === 'calendar' && '✓ From your uploaded district calendar (set on the Year Plan page).'}
+            {weeksSource === 'default' && "Using a standard 36-week default until you upload your district calendar on the Year Plan page."}
+            {weeksSource === 'manual' && 'Manually overridden.'}
+          </p>
         </div>
 
         <button onClick={save} disabled={saving} style={{ padding: '10px 24px', background: C.gold, color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>
@@ -105,3 +133,4 @@ export default function UnitsPage() {
     </div>
   )
 }
+
