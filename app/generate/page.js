@@ -19,6 +19,12 @@ function GenerateForm() {
   const [numProjects, setNumProjects] = useState('')
   const [numWorksheets, setNumWorksheets] = useState('')
   const [weekNumber, setWeekNumber] = useState('')
+  const [previousPlanUpload, setPreviousPlanUpload] = useState(null)
+  const [usePreviousPlan, setUsePreviousPlan] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/previous-plan').then((r) => r.json()).then((d) => setPreviousPlanUpload(d.upload)).catch(() => {})
+  }, [])
   const [generating, setGenerating] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
@@ -37,7 +43,7 @@ function GenerateForm() {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, title, subject, grade, theme, numProjects, numWorksheets, parentId, weekNumber: weekNumber || undefined }),
+        body: JSON.stringify({ type, title, subject, grade, theme, numProjects, numWorksheets, parentId, weekNumber: weekNumber || undefined, usePreviousPlan }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Generation failed')
@@ -93,6 +99,15 @@ function GenerateForm() {
               </Tooltip>
             )}
 
+            {previousPlanUpload && (
+              <Tooltip text={`Have AI update and modify "${previousPlanUpload.filename}" instead of writing something new from scratch.`} width={260}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 16, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={usePreviousPlan} onChange={(e) => setUsePreviousPlan(e.target.checked)} />
+                  Modify my previous plan ({previousPlanUpload.filename}) instead of starting from scratch
+                </label>
+              </Tooltip>
+            )}
+
             {error && <div style={{ background: '#fdecea', border: '1px solid #f5b7b1', borderRadius: 8, padding: 12, color: '#c0392b', marginBottom: 16 }}>{error}</div>}
 
             <Tooltip text="Generates this lesson/unit plan using your steering documents to ground it — takes a moment, nothing is saved until it finishes." width={240}>
@@ -131,6 +146,7 @@ export default function GeneratePage() {
     </Suspense>
   )
 }
+
 
 
 
