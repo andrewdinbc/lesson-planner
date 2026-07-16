@@ -17,6 +17,8 @@ export default function UnitsPage() {
   const [weeksSource, setWeeksSource] = useState('default') // 'default' | 'calendar'
   const [populating, setPopulating] = useState(false)
   const [populateResult, setPopulateResult] = useState(null)
+  // 'checking' | 'missing' | 'present' | 'skipped-by-user'
+  const [classSetupStatus, setClassSetupStatus] = useState('checking')
   const [expandedCompetency, setExpandedCompetency] = useState({}) // `${subject}::${unit_name}` -> bool
 
   async function populateFromCurriculum() {
@@ -55,6 +57,15 @@ export default function UnitsPage() {
         }
       })
       .catch(() => {})
+
+    // AI curriculum generation (both the Populate button here and plan
+    // generation elsewhere) needs to know grade + subject to be grounded
+    // in anything real -- surface that clearly rather than letting the
+    // Populate button just silently do nothing/fail later.
+    fetch('/api/class-setup')
+      .then((r) => r.json())
+      .then((d) => setClassSetupStatus(d.setup ? 'present' : 'missing'))
+      .catch(() => setClassSetupStatus('missing'))
   }, [])
 
   const bySubject = units.reduce((acc, u) => {
@@ -90,14 +101,44 @@ export default function UnitsPage() {
           All units start at equal priority. Raise a slider to give a unit more time this year (e.g. Fractions or Algebra typically need more than others). Uncheck a unit to remove it from this year's plan.
         </p>
 
+        {classSetupStatus === 'missing' && (
+          <div style={{ background: '#fdf3e3', border: '1px solid #e8c88a', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+            <p style={{ fontSize: 13, color: '#7a5a1e', margin: '0 0 10px' }}>
+              In order for AI to generate this information, we need to know what grade and subject you teach. Would you like to fill that out now?
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <a href="/class-setup" style={{
+                padding: '8px 16px', background: C.navy, color: '#fff', borderRadius: 6, fontSize: 13, fontWeight: 600, textDecoration: 'none',
+              }}>
+                Yes, fill it out
+              </a>
+              <button
+                onClick={() => setClassSetupStatus('skipped-by-user')}
+                style={{ padding: '8px 16px', background: 'none', color: '#7a5a1e', border: `1px solid #e8c88a`, borderRadius: 6, fontSize: 13, cursor: 'pointer' }}
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        )}
+
+        {classSetupStatus === 'skipped-by-user' && (
+          <div style={{ background: '#fdecea', border: '1px solid #f5b7b1', borderRadius: 8, padding: 14, marginBottom: 16, fontSize: 13, color: '#a33' }}>
+            AI generation isn't possible without your grade and subject — you can still set units and priorities manually below, and fill this out later from the Dashboard.
+          </div>
+        )}
+
         <div style={{ marginBottom: 16 }}>
           <button
-            onClick={populateFromCurriculum} disabled={populating}
+            onClick={populateFromCurriculum} disabled={populating || classSetupStatus !== 'present'}
             title="Pulls real content from curriculum.gov.bc.ca for your grade(s) and groups it into units automatically -- for Language Arts, Math, Science, and Social Studies. Split grades are supported: content from every grade you teach gets combined."
             style={{
               padding: '10px 20px', background: C.navy, color: '#fff', border: 'none', borderRadius: 6,
-              fontWeight: 600, fontSize: 13, cursor: populating ? 'not-allowed' : 'pointer', opacity: populating ? 0.6 : 1,
+              fontWeight: 600, fontSize: 13,
+              cursor: (populating || classSetupStatus !== 'present') ? 'not-allowed' : 'pointer',
+              opacity: (populating || classSetupStatus !== 'present') ? 0.5 : 1,
             }}
+            title={classSetupStatus !== 'present' ? 'Fill out "What do you teach?" first' : undefined}
           >
             {populating ? 'Pulling from BC Curriculum…' : '📖 Populate from BC Curriculum'}
           </button>
@@ -203,5 +244,6 @@ export default function UnitsPage() {
     </div>
   )
 }
+
 
 
