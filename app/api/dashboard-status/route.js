@@ -9,8 +9,9 @@ export async function GET() {
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
 
   try {
-    const [inventory, yearPlan, unitPriorities, weeklySchedule, resources] = await Promise.all([
+    const [inventory, classSetup, yearPlan, unitPriorities, weeklySchedule, resources] = await Promise.all([
       sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=completed_at,skipped&limit=1`),
+      sbSelect('teacher_class_setup', `?user_id=eq.${user.id}&select=id&limit=1`),
       sbSelect('year_plan_lens_prefs', `?user_id=eq.${user.id}&select=id&limit=1`),
       sbSelect('unit_priorities', `?user_id=eq.${user.id}&select=id&limit=1`),
       sbSelect('weekly_schedule_prefs', `?user_id=eq.${user.id}&select=id&limit=1`),
@@ -19,6 +20,7 @@ export async function GET() {
 
     return Response.json({
       inventories: inventory.length > 0 && (inventory[0].completed_at || inventory[0].skipped),
+      classSetup: classSetup.length > 0,
       yearPlan: yearPlan.length > 0,
       unitPriorities: unitPriorities.length > 0,
       weeklySchedule: weeklySchedule.length > 0,
@@ -28,3 +30,4 @@ export async function GET() {
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
