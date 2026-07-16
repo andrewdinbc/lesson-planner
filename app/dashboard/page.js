@@ -174,6 +174,9 @@ export default function Dashboard() {
           <ActionCard href="/year-plan" emoji="🗓️" title="Year Plan" number={3} state={status.yearPlan}
             desc="Set your Year Structure lens and how much time each period gets"
             tooltip="Set your Year Structure lens and how much time each period gets" />
+          <ActionCard href="/previous-plan" emoji="📤" title="Upload & Modify My Previous Plan" state={status.previousPlan}
+            desc="Already have a plan from a previous year? Upload it and have AI update it instead of starting over"
+            tooltip="Already have a plan from a previous year? Upload it and have AI update it instead of starting over -- saves experienced teachers real time." />
           <ActionCard href="/units" emoji="🎯" title="Unit Priorities" number={4} state={status.unitPriorities} skippable skipStepKey="unit_priorities"
             desc="Set priority weighting for each unit within a subject"
             tooltip="Set priority weighting for each unit within a subject" />
@@ -255,6 +258,7 @@ export default function Dashboard() {
     </div>
   )
 }
+
 
 
 
