@@ -5,7 +5,7 @@ import { getCurriculum } from '@/lib/bc-curriculum'
 import { ALWAYS_HIGH_SCRUTINY } from '@/lib/unit-priorities'
 
 export const runtime = 'nodejs'
-export const maxDuration = 90
+export const maxDuration = 300
 
 // The 4 subjects Aj wants given the largest, most structured unit
 // breakdown -- these get real curriculum.gov.bc.ca content clustered by
@@ -14,8 +14,15 @@ export const maxDuration = 90
 // explicitly wants the same treatment later.
 const CORE_SUBJECTS = ['Language Arts', 'Mathematics', 'Science', 'Social Studies']
 
+// IMPORTANT: everything in this route runs in PARALLEL (Promise.all), not
+// sequential for-loops. The original sequential version (fetch curriculum
+// for every grade, one at a time, then AI-cluster every subject, one at a
+// time) hit FUNCTION_INVOCATION_TIMEOUT in production -- up to 8 curriculum
+// fetches + 4 separate ~15-20s AI calls, run one after another, easily
+// exceeded even a 90s maxDuration. Running the independent work in
+// parallel instead cuts wall-clock time from "sum of every step" to
+// roughly "the single slowest step."
 async function clusterContentIntoUnits(subject, gradeContentBlocks) {
-  // gradeContentBlocks: [{ grade, content, curricularCompetency, sourceUrl }]
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
   const gradeText = gradeContentBlocks.map((g) =>
@@ -43,6 +50,24 @@ ${gradeText.slice(0, 12000)}`
   return JSON.parse(raw.replace(/```json|```/g, '').trim())
 }
 
+// Fetch every grade's curriculum for one subject, in parallel.
+async function fetchSubjectGradeBlocks(subject, grades) {
+  const results = await Promise.all(
+    grades.map(async (grade) => {
+      try {
+        const curriculum = await getCurriculum(subject, grade)
+        if (curriculum && curriculum.content) {
+          return { grade, content: curriculum.content, curricularCompetency: curriculum.curricularCompetency, sourceUrl: curriculum.sourceUrl }
+        }
+        return null
+      } catch {
+        return null
+      }
+    })
+  )
+  return results.filter(Boolean)
+}
+
 export async function POST() {
   const user = await getCurrentUser()
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
@@ -54,33 +79,39 @@ export async function POST() {
       return Response.json({ error: 'No grades set yet -- fill in "What do you teach?" first.' }, { status: 400 })
     }
 
+    // Step 1: fetch curriculum content for all 4 subjects in parallel
+    // (each subject itself fetches its grades in parallel too).
+    const subjectBlocks = await Promise.all(
+      CORE_SUBJECTS.map(async (subject) => ({ subject, gradeBlocks: await fetchSubjectGradeBlocks(subject, grades) }))
+    )
+
     const results = { populated: [], skipped: [] }
+    const subjectsWithContent = subjectBlocks.filter((s) => s.gradeBlocks.length > 0)
+    const subjectsWithoutContent = subjectBlocks.filter((s) => s.gradeBlocks.length === 0)
 
-    for (const subject of CORE_SUBJECTS) {
-      // Fetch real curriculum content for every grade this teacher
-      // teaches (split-grade support -- a combined 4/5 class fetches
-      // both Grade 4 and Grade 5 curriculum for this subject).
-      const gradeBlocks = []
-      for (const grade of grades) {
-        const curriculum = await getCurriculum(subject, grade)
-        if (curriculum && curriculum.content) {
-          gradeBlocks.push({ grade, content: curriculum.content, curricularCompetency: curriculum.curricularCompetency, sourceUrl: curriculum.sourceUrl })
-        }
-      }
+    for (const s of subjectsWithoutContent) {
+      results.skipped.push({ subject: s.subject, reason: 'No curriculum data available for this grade/subject combination' })
+    }
 
-      if (!gradeBlocks.length) {
-        results.skipped.push({ subject, reason: 'No curriculum data available for this grade/subject combination' })
+    // Step 2: AI-cluster all subjects with content IN PARALLEL -- this is
+    // the step that was previously sequential and the main timeout cause.
+    const clusterOutcomes = await Promise.allSettled(
+      subjectsWithContent.map((s) => clusterContentIntoUnits(s.subject, s.gradeBlocks))
+    )
+
+    // Step 3: write results to the DB. DB writes are sequential per
+    // subject (to keep upsert logic simple/safe) but subjects themselves
+    // were already clustered in parallel above, so this is fast now.
+    for (let i = 0; i < subjectsWithContent.length; i++) {
+      const { subject, gradeBlocks } = subjectsWithContent[i]
+      const outcome = clusterOutcomes[i]
+
+      if (outcome.status === 'rejected') {
+        results.skipped.push({ subject, reason: `AI clustering failed: ${outcome.reason?.message || outcome.reason}` })
         continue
       }
 
-      let clusteredUnits
-      try {
-        clusteredUnits = await clusterContentIntoUnits(subject, gradeBlocks)
-      } catch (e) {
-        results.skipped.push({ subject, reason: `AI clustering failed: ${e.message}` })
-        continue
-      }
-
+      const clusteredUnits = outcome.value
       const sourceUrl = gradeBlocks[0].sourceUrl
 
       for (const unit of clusteredUnits) {
