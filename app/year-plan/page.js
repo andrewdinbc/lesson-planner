@@ -50,6 +50,7 @@ export default function YearPlanPage() {
   const [calendarStatus, setCalendarStatus] = useState('unset') // 'unset' | 'uploading' | 'parsed' | 'defaulted' | 'error'
   const [calendarSummary, setCalendarSummary] = useState(null)
   const [calendarError, setCalendarError] = useState('')
+  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   const weeksAvailable = Math.round(weekdaysBetween(startDate, endDate) / 5) || 38
 
@@ -97,6 +98,12 @@ export default function YearPlanPage() {
 
   const total = periods.reduce((sum, p) => sum + Number(p.period_pct || 0), 0)
   const currentModel = CURRICULUM_MODELS.find((m) => m.key === modelKey)
+
+  // Auto-expand Advanced if the currently selected/saved lens lives there,
+  // so a returning teacher's choice isn't hidden behind the collapsed section.
+  useEffect(() => {
+    if (currentModel?.tier === 'advanced') setAdvancedOpen(true)
+  }, [currentModel])
   const basicModels = CURRICULUM_MODELS.filter((m) => m.tier === 'basic')
   const advancedModels = CURRICULUM_MODELS.filter((m) => m.tier === 'advanced')
 
@@ -178,34 +185,48 @@ export default function YearPlanPage() {
               >
                 <span style={{ fontSize: 18 }}>{m.emoji}</span>
                 <span style={{ fontWeight: 700, color: C.navy, whiteSpace: 'nowrap' }}>
-                  {m.label}{m.popular ? ' ⭐' : ''}
+                  {m.label}
                 </span>
+                {m.popular && (
+                  <span style={{ color: C.gold, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    ⭐ Popular
+                  </span>
+                )}
                 <span style={{ color: '#888', fontSize: 12 }}>— {m.oneLine}</span>
               </button>
             ))}
           </div>
 
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', margin: '4px 0 6px' }}>
-            Advanced — a bigger structural shift
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {advancedModels.map((m) => (
-              <button
-                key={m.key} type="button" onClick={() => setModelKey(m.key)}
-                title={m.summary}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', padding: '10px 12px',
-                  borderRadius: 8, cursor: 'pointer', fontSize: 13,
-                  border: `1px solid ${modelKey === m.key ? C.gold : C.border}`,
-                  background: modelKey === m.key ? '#fff8ee' : '#fff',
-                }}
-              >
-                <span style={{ fontSize: 18 }}>{m.emoji}</span>
-                <span style={{ fontWeight: 700, color: C.navy, whiteSpace: 'nowrap' }}>{m.label}</span>
-                <span style={{ color: '#888', fontSize: 12 }}>— {m.oneLine}</span>
-              </button>
-            ))}
-          </div>
+          <button
+            type="button" onClick={() => setAdvancedOpen((v) => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', margin: '4px 0 6px', padding: 0,
+            }}
+          >
+            <span style={{ display: 'inline-block', transform: advancedOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▸</span>
+            Advanced — a bigger structural shift {advancedOpen ? '' : `(${advancedModels.length})`}
+          </button>
+          {advancedOpen && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {advancedModels.map((m) => (
+                <button
+                  key={m.key} type="button" onClick={() => setModelKey(m.key)}
+                  title={m.summary}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', padding: '10px 12px',
+                    borderRadius: 8, cursor: 'pointer', fontSize: 13,
+                    border: `1px solid ${modelKey === m.key ? C.gold : C.border}`,
+                    background: modelKey === m.key ? '#fff8ee' : '#fff',
+                  }}
+                >
+                  <span style={{ fontSize: 18 }}>{m.emoji}</span>
+                  <span style={{ fontWeight: 700, color: C.navy, whiteSpace: 'nowrap' }}>{m.label}</span>
+                  <span style={{ color: '#888', fontSize: 12 }}>— {m.oneLine}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {currentModel && (
             <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
@@ -323,5 +344,6 @@ export default function YearPlanPage() {
     </div>
   )
 }
+
 
 
