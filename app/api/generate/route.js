@@ -4,6 +4,7 @@ import { getCurrentUser } from '../../../lib/session'
 import { STEERING_CATEGORIES, STEERING_CATEGORY_MAP } from '../../../lib/steering-categories'
 import { buildSteeringContext } from '../../../lib/steering-context'
 import { getCurriculum, focusForModel } from '../../../lib/bc-curriculum'
+import { computeWeekWindows, periodForWeek } from '../../../lib/year-plan'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -26,7 +27,7 @@ export async function POST(request) {
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
 
   try {
-    const { type, title, subject, grade, theme, numProjects, numWorksheets, parentId, steeringDocIds } = await request.json()
+    const { type, title, subject, grade, theme, numProjects, numWorksheets, parentId, steeringDocIds, weekNumber } = await request.json()
     if (!type || !TYPE_GUIDANCE[type]) return Response.json({ error: 'Valid type required (year/month/week/day/lesson)' }, { status: 400 })
 
     let parentContext = ''
@@ -190,6 +191,41 @@ export async function POST(request) {
       }
     }
 
+    // Wires the Year Plan lens (set on /year-plan) into actual generation --
+    // previously the lens/period allocation only existed as standalone data
+    // (year_plan_lens_prefs) with nothing downstream reading it. For a
+    // "year" plan, the AI gets the full period structure and must organize
+    // around it. For month/week/day/lesson plans, if the teacher tells us
+    // which instructional week this is for (weekNumber), we look up which
+    // lens period that week falls in and anchor the plan to that period's
+    // theme/framing specifically, not just a generic day of the year.
+    let yearStructureContext = ''
+    try {
+      const lensRows = await sbSelect('year_plan_lens_prefs', `?user_id=eq.${user.id}&select=model_key,period_label,period_pct,sort_order&order=sort_order.asc`)
+      if (lensRows.length > 0) {
+        const modelKey = lensRows[0].model_key
+        // Rough total-weeks estimate for windowing purposes -- teachers'
+        // real start/end dates live on the Year Plan page itself; this
+        // generation route doesn't have direct access to that state, so
+        // we fall back to a standard 38-week year unless a more precise
+        // figure becomes available here later.
+        const windows = computeWeekWindows(lensRows, 38)
+        const periodList = windows.map((w) => `- ${w.period_label} (${Math.round(w.period_pct)}% of the year, weeks ${w.startWeek}-${w.endWeek})`).join('\n')
+
+        if (type === 'year') {
+          yearStructureContext = `\n\nYEAR STRUCTURE (from this teacher's chosen curriculum lens, model: ${modelKey}) -- organize the year plan around these periods specifically, in this order, respecting each period's week range. Do not default to generic subject-by-subject or term-by-term structure if it conflicts with this:\n${periodList}`
+        } else if (weekNumber) {
+          const activePeriod = periodForWeek(windows, Number(weekNumber))
+          if (activePeriod) {
+            yearStructureContext = `\n\nYEAR STRUCTURE CONTEXT: this ${type} plan falls in instructional week ${weekNumber}, which is inside the "${activePeriod.period_label}" period (weeks ${activePeriod.startWeek}-${activePeriod.endWeek}) of this teacher's chosen curriculum lens. Frame the content's theme/anchor/focus to fit this period specifically, not a generic ${type}.`
+          }
+        }
+      }
+    } catch {
+      // No lens set yet, or lookup failed -- generation proceeds without
+      // year-structure framing rather than blocking entirely.
+    }
+
     const prompt = `Generate ${TYPE_GUIDANCE[type]}.
 
 Title: ${title}
@@ -199,7 +235,7 @@ Theme: ${theme || 'not specified'}
 ${numProjects ? `Number of hands-on projects: ${numProjects}` : ''}
 ${numWorksheets ? `Number of worksheets: ${numWorksheets}` : ''}
 ${parentContext}
-${steeringContext}${resourcesContext}${classContext}${profileContext}${bcCurriculumContext}${pacingContext}
+${steeringContext}${resourcesContext}${yearStructureContext}${classContext}${profileContext}${bcCurriculumContext}${pacingContext}
 
 Return the plan content as clean, well-structured Markdown suitable for direct display and .txt export.`
 
@@ -222,6 +258,7 @@ Return the plan content as clean, well-structured Markdown suitable for direct d
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
 
 
 
