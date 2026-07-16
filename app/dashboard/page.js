@@ -9,12 +9,21 @@ import { COLORS as C, FONT_BODY, FONT_BRAND } from '@/lib/theme'
 // cards) so the two apps read as one ecosystem -- same structure, same
 // exact color tokens, same fonts (see lib/theme.js).
 
-function ActionCard({ href, emoji, title, desc, tooltip }) {
+function ActionCard({ href, emoji, title, desc, tooltip, number, skippable }) {
   const card = (
     <Link href={href} style={{
       display: 'flex', alignItems: 'center', gap: 16, background: C.card, border: `1px solid ${C.border}`,
-      borderRadius: 12, padding: 20, textDecoration: 'none', flex: 1, minWidth: 260,
+      borderRadius: 12, padding: 20, textDecoration: 'none', flex: 1, minWidth: 260, position: 'relative',
     }}>
+      {number != null && (
+        <div style={{
+          position: 'absolute', top: -10, left: -10, width: 26, height: 26, borderRadius: '50%',
+          background: C.navy, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 13, fontWeight: 700,
+        }}>
+          {number}
+        </div>
+      )}
       <div style={{
         width: 44, height: 44, borderRadius: 10, background: C.bg, display: 'flex',
         alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0,
@@ -28,7 +37,20 @@ function ActionCard({ href, emoji, title, desc, tooltip }) {
       <span style={{ color: '#bbb', fontSize: 18 }}>›</span>
     </Link>
   )
-  return tooltip ? <Tooltip text={tooltip} position="top">{card}</Tooltip> : card
+  const wrapped = tooltip ? <Tooltip text={tooltip} position="top">{card}</Tooltip> : card
+
+  if (!skippable) return wrapped
+
+  return (
+    <div>
+      {wrapped}
+      <div style={{ textAlign: 'right', marginTop: 6 }}>
+        <Link href="/dashboard?skip=inventories" style={{ fontSize: 12, color: '#999', textDecoration: 'underline' }}>
+          Skip for now
+        </Link>
+      </div>
+    </div>
+  )
 }
 
 export default function Dashboard() {
@@ -95,19 +117,19 @@ export default function Dashboard() {
 
       {/* Main */}
       <div style={{ flex: 1, padding: 40, maxWidth: 1100 }}>
-        <ActionCard href="/inventories" emoji="📋" title="Tell us about your teaching style"
+        <ActionCard href="/inventories" emoji="📋" title="Tell us about your teaching style" number={1} skippable
           desc="4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach"
           tooltip="4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach." />
 
         <h1 style={{ fontSize: 24, color: C.navy, margin: '28px 0 20px' }}>Plan your year</h1>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 40 }}>
-          <ActionCard href="/year-plan" emoji="🗓️" title="Year Plan"
+          <ActionCard href="/year-plan" emoji="🗓️" title="Year Plan" number={2}
             desc="Set your Year Structure lens and how much time each period gets"
             tooltip="Set your Year Structure lens and how much time each period gets" />
-          <ActionCard href="/units" emoji="🎯" title="Unit Priorities"
+          <ActionCard href="/units" emoji="🎯" title="Unit Priorities" number={3}
             desc="Set priority weighting for each unit within a subject"
             tooltip="Set priority weighting for each unit within a subject" />
-          <ActionCard href="/week" emoji="📅" title="Weekly Schedule"
+          <ActionCard href="/week" emoji="📅" title="Weekly Schedule" number={4}
             desc="Build your weekly class schedule with fixed blocks"
             tooltip="Build your weekly class schedule with fixed blocks" />
         </div>
@@ -182,3 +204,4 @@ export default function Dashboard() {
     </div>
   )
 }
+
