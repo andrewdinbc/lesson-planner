@@ -4,9 +4,14 @@ import { usePathname } from 'next/navigation'
 
 import { COLORS as C } from '@/lib/theme'
 
+// "Steering Documents" removed from top nav per Aj -- that admin-only
+// feature is for AI-generation grounding, not what teachers will
+// actually be adding (they'll be adding Resources/websites they've
+// bought or like using, a different, simpler concept). The /steering
+// route itself still exists for now; it's just not a top-level nav item
+// until the Resources feature it's being reframed into is built.
 const LINKS = [
   { href: '/dashboard', label: 'Your Plans' },
-  { href: '/steering', label: 'Steering Documents' },
 ]
 
 export default function Header() {
