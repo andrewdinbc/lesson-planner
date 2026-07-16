@@ -76,10 +76,13 @@ export async function POST(request) {
     // from the free-text profileContext derived from inventories below.
     let classContext = ''
     {
-      const classSetup = await sbSelect('teacher_class_setup', `?user_id=eq.${user.id}&select=grades,subjects&limit=1`)
+      const classSetup = await sbSelect('teacher_class_setup', `?user_id=eq.${user.id}&select=grades,subjects,province,custom_curriculum_url&limit=1`)
       if (classSetup.length) {
-        const { grades, subjects } = classSetup[0]
+        const { grades, subjects, province, custom_curriculum_url } = classSetup[0]
         classContext = `\n\nTHIS TEACHER TEACHES: Grade(s) ${grades.join(', ')}, Subject(s): ${subjects.join(', ')}. Generate content appropriate to these grade levels and subjects specifically -- do not assume a different grade or subject.`
+        if (province && province !== 'BC') {
+          classContext += `\n\nIMPORTANT: this teacher is NOT in BC -- they teach in a different province/jurisdiction. Do not default to BC curriculum language, terminology, or structure.${custom_curriculum_url ? ` They provided their own provincial curriculum for reference: ${custom_curriculum_url} -- use this as your grounding source instead of BC's curriculum where the two would differ.` : ' No specific curriculum link was provided, so use general best-practice grade-level content and flag where BC-specific assumptions may not apply.'}`
+        }
       }
     }
 
@@ -271,6 +274,7 @@ Return the plan content as clean, well-structured Markdown suitable for direct d
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
 
 
 
