@@ -165,25 +165,26 @@ export default function Dashboard() {
           desc="4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach"
           tooltip="4 short inventories (~10 min, optional) so AI-generated plans fit how you actually teach." />
 
-        <ActionCard href="/class-setup" emoji="🏫" title="What do you teach?" number={2} state={status.classSetup} skippable skipStepKey="class_setup"
+        <ActionCard href="/previous-plan" emoji="📤" title="Upload & Modify My Previous Plan" number={2} state={status.previousPlan}
+          desc="Already have a plan? Upload it and we'll pre-fill your grades/subjects (and take a guess at your teaching style) from it"
+          tooltip="Already have a plan from a previous year? Upload it -- we'll try to infer your grades, subjects, and even some teaching-style signals from it, then pre-fill the next steps for you to confirm." />
+
+        <ActionCard href="/class-setup" emoji="🏫" title="What do you teach?" number={3} state={status.classSetup} skippable skipStepKey="class_setup"
           desc="Your grades and subjects — this needs to come before Year Plan"
           tooltip="Your grades and subjects — this needs to come before Year Plan" />
 
         <h1 style={{ fontSize: 24, color: C.navy, margin: '28px 0 20px' }}>Plan your year</h1>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 40 }}>
-          <ActionCard href="/year-plan" emoji="🗓️" title="Year Plan" number={3} state={status.yearPlan}
+          <ActionCard href="/year-plan" emoji="🗓️" title="Year Plan" number={4} state={status.yearPlan}
             desc="Set your Year Structure lens and how much time each period gets"
             tooltip="Set your Year Structure lens and how much time each period gets" />
-          <ActionCard href="/previous-plan" emoji="📤" title="Upload & Modify My Previous Plan" state={status.previousPlan}
-            desc="Already have a plan from a previous year? Upload it and have AI update it instead of starting over"
-            tooltip="Already have a plan from a previous year? Upload it and have AI update it instead of starting over -- saves experienced teachers real time." />
-          <ActionCard href="/units" emoji="🎯" title="Unit Priorities" number={4} state={status.unitPriorities} skippable skipStepKey="unit_priorities"
+          <ActionCard href="/units" emoji="🎯" title="Unit Priorities" number={5} state={status.unitPriorities} skippable skipStepKey="unit_priorities"
             desc="Set priority weighting for each unit within a subject"
             tooltip="Set priority weighting for each unit within a subject" />
-          <ActionCard href="/week" emoji="📅" title="Weekly Schedule" number={5} state={status.weeklySchedule}
+          <ActionCard href="/week" emoji="📅" title="Weekly Schedule" number={6} state={status.weeklySchedule}
             desc="Build your weekly class schedule with fixed blocks"
             tooltip="Build your weekly class schedule with fixed blocks" />
-          <ActionCard href="/resources" emoji="🔗" title="Add Additional Resources" number={6} state={status.resources}
+          <ActionCard href="/resources" emoji="🔗" title="Add Additional Resources" number={7} state={status.resources}
             desc="Add sites and materials you like so the AI can reference them"
             tooltip="Add sites and materials you like so the AI can reference them" />
         </div>
@@ -258,6 +259,7 @@ export default function Dashboard() {
     </div>
   )
 }
+
 
 
 
