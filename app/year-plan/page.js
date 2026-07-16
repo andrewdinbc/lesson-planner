@@ -153,29 +153,59 @@ export default function YearPlanPage() {
         </p>
 
         <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
-          <label style={{ fontSize: 13, display: 'block', marginBottom: 8 }} title="This determines how your year is structured into periods below.">
-            Curriculum lens
+          <label style={{ fontSize: 13, display: 'block', marginBottom: 10 }} title="This determines how your year is structured into periods below.">
+            Curriculum lens — each option's one-line meaning is shown beside it
           </label>
-          <select
-            value={modelKey}
-            onChange={(e) => setModelKey(e.target.value)}
-            style={{ width: '100%', padding: 10, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 14 }}
-          >
-            <optgroup label="Basic — close to how most teachers already plan">
-              {basicModels.map((m) => (
-                <option key={m.key} value={m.key}>{m.emoji} {m.label}{m.popular ? ' ⭐ Popular' : ''}</option>
-              ))}
-            </optgroup>
-            <optgroup label="Advanced — a bigger structural shift">
-              {advancedModels.map((m) => (
-                <option key={m.key} value={m.key}>{m.emoji} {m.label}</option>
-              ))}
-            </optgroup>
-          </select>
+
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', margin: '4px 0 6px' }}>
+            Basic — close to how most teachers already plan
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+            {basicModels.map((m) => (
+              <button
+                key={m.key} type="button" onClick={() => setModelKey(m.key)}
+                title={m.summary}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', padding: '10px 12px',
+                  borderRadius: 8, cursor: 'pointer', fontSize: 13,
+                  border: `1px solid ${modelKey === m.key ? C.gold : C.border}`,
+                  background: modelKey === m.key ? '#fff8ee' : '#fff',
+                }}
+              >
+                <span style={{ fontSize: 18 }}>{m.emoji}</span>
+                <span style={{ fontWeight: 700, color: C.navy, whiteSpace: 'nowrap' }}>
+                  {m.label}{m.popular ? ' ⭐' : ''}
+                </span>
+                <span style={{ color: '#888', fontSize: 12 }}>— {m.oneLine}</span>
+              </button>
+            ))}
+          </div>
+
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', margin: '4px 0 6px' }}>
+            Advanced — a bigger structural shift
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {advancedModels.map((m) => (
+              <button
+                key={m.key} type="button" onClick={() => setModelKey(m.key)}
+                title={m.summary}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', padding: '10px 12px',
+                  borderRadius: 8, cursor: 'pointer', fontSize: 13,
+                  border: `1px solid ${modelKey === m.key ? C.gold : C.border}`,
+                  background: modelKey === m.key ? '#fff8ee' : '#fff',
+                }}
+              >
+                <span style={{ fontSize: 18 }}>{m.emoji}</span>
+                <span style={{ fontWeight: 700, color: C.navy, whiteSpace: 'nowrap' }}>{m.label}</span>
+                <span style={{ color: '#888', fontSize: 12 }}>— {m.oneLine}</span>
+              </button>
+            ))}
+          </div>
+
           {currentModel && (
-            <div style={{ marginTop: 8 }}>
-              <p style={{ fontSize: 13, color: C.navy, fontWeight: 600, margin: 0 }}>{currentModel.oneLine}</p>
-              <p style={{ fontSize: 12, color: '#888', marginTop: 4, marginBottom: 0 }}>{currentModel.summary}</p>
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+              <p style={{ fontSize: 12, color: '#888', margin: 0 }}>{currentModel.summary}</p>
             </div>
           )}
         </div>
@@ -289,3 +319,4 @@ export default function YearPlanPage() {
     </div>
   )
 }
+
