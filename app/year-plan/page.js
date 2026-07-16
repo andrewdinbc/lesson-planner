@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { CURRICULUM_MODELS } from '@/lib/curriculum-models'
+import { useRequireAuth } from '@/lib/useRequireAuth'
 
 import { COLORS as C, FONT_BODY } from '@/lib/theme'
 
@@ -38,6 +39,7 @@ function defaultSchoolYearRange() {
 }
 
 export default function YearPlanPage() {
+  const authChecked = useRequireAuth()
   const [modelKey, setModelKey] = useState('standards_based')
   const [periods, setPeriods] = useState([])
   const [windows, setWindows] = useState(null)
@@ -139,6 +141,8 @@ export default function YearPlanPage() {
     setCalendarSummary(null)
     setCalendarError('')
   }
+
+  if (!authChecked) return null
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: FONT_BODY, padding: 32 }}>
@@ -319,4 +323,5 @@ export default function YearPlanPage() {
     </div>
   )
 }
+
 
