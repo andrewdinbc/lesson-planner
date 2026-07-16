@@ -31,7 +31,7 @@ export async function GET() {
   const user = await getCurrentUser()
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
 
-  const [inventories, classSetup, yearPlan, unitPriorities, weeklySchedule, resources] = await Promise.all([
+  const [inventories, classSetup, yearPlan, unitPriorities, weeklySchedule, resources, previousPlan] = await Promise.all([
     safeCheck(async () => {
       const rows = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=completed_at,skipped&limit=1`)
       if (!rows.length) return 'incomplete'
@@ -63,7 +63,12 @@ export async function GET() {
       const rows = await sbSelect('teacher_resources', `?user_id=eq.${user.id}&select=id&limit=1`)
       return rows.length > 0 ? 'done' : 'incomplete'
     }),
+    safeCheck(async () => {
+      const rows = await sbSelect('previous_plan_uploads', `?user_id=eq.${user.id}&select=id&limit=1`)
+      return rows.length > 0 ? 'done' : 'incomplete'
+    }),
   ])
 
-  return Response.json({ inventories, classSetup, yearPlan, unitPriorities, weeklySchedule, resources })
+  return Response.json({ inventories, classSetup, yearPlan, unitPriorities, weeklySchedule, resources, previousPlan })
 }
+
