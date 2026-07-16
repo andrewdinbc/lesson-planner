@@ -55,7 +55,7 @@ export default function ClassSetupPage() {
         body: JSON.stringify({ grades, subjects }),
       })
       if (!res.ok) throw new Error((await res.json()).error || 'Failed to save')
-      router.push('/year-plan')
+      router.push('/dashboard')
     } catch (e) {
       setError(e.message)
     } finally {
@@ -141,3 +141,4 @@ export default function ClassSetupPage() {
     </div>
   )
 }
+
