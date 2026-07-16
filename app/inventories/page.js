@@ -50,21 +50,33 @@ const PHILOSOPHY_ITEMS = [
 // mixes short-answer fields with checkboxes; everything else is
 // checkbox-only. Section F (TA support) only shows if the teacher
 // indicates they have TA support, since it doesn't apply otherwise.
+const FREQUENCY_SCALE = ['Never', 'Rarely', 'Sometimes', 'Often', 'Always']
+
+// Plain-language explanations shown on hover in the results/review step --
+// what each score actually means and how it changes AI-generated plans.
+const TSI_CLUSTER_INFO = {
+  Expert: 'How much you lead with deep subject knowledge and direct explanation. Higher = plans lean toward teacher-delivered content and worked examples.',
+  'Formal Authority': 'How much structure, clear expectations, and defined "right answers" you bring. Higher = plans include more explicit rubrics, standards, and structured sequencing.',
+  'Personal Model': 'How much you teach by demonstrating your own approach/thinking. Higher = plans include more modeling and think-aloud style content.',
+  Facilitator: 'How much you guide students to find answers themselves. Higher = plans lean toward inquiry, questioning, and guided discovery.',
+  Delegator: 'How much autonomy you give students to work independently. Higher = plans include more independent/small-group project work.',
+}
+const TPI_PERSPECTIVE_INFO = {
+  Transmission: 'Belief that effective teaching starts with mastering and clearly conveying content. Higher = plans prioritize clear content delivery.',
+  Apprenticeship: 'Belief that teaching is best done through hands-on practice under guidance. Higher = plans favor practice-and-feedback cycles.',
+  Developmental: "Belief that teaching should start from the learner's existing understanding. Higher = plans build more scaffolding from prior knowledge.",
+  Nurturing: 'Belief that learning requires supportive persistence and encouragement. Higher = plans include more encouragement/confidence-building framing.',
+  'Social Reform': 'Belief that teaching should challenge students to question and improve the world around them. Higher = plans include more real-world/critical framing.',
+}
+const PHILOSOPHY_INFO = {
+  Essentialism: 'Core knowledge and skills should be taught directly and systematically. Higher = plans lean toward direct instruction of foundational content.',
+  Behaviorism: 'Learning is best shaped through practice, feedback, and reinforcement. Higher = plans include more structured practice and feedback loops.',
+  Progressivism: "Learning should connect to students' interests and real experience. Higher = plans lean toward relevant, experience-based framing.",
+  Constructivism: 'Students build understanding by actively constructing it themselves. Higher = plans favor inquiry and student-constructed understanding.',
+  'Social Reconstructionism': 'Education should equip students to critically examine and improve society. Higher = plans include more social-context and critical-thinking framing.',
+}
+
 const TPI_SECTIONS = [
-  {
-    key: 'A', title: 'Course Information',
-    fields: [
-      { id: 'courseTitle', label: 'Course/class title', type: 'text' },
-      { id: 'courseLevel', label: 'Grade/level', type: 'text' },
-      { id: 'numStudents', label: 'Approximate number of students', type: 'text' },
-    ],
-    checkboxes: [
-      'Learning goals are clearly stated for the course.',
-      'Learning goals are shared with students.',
-      'Course outline includes expectations, grading, and policies.',
-      'Course outline includes statements about skills students will develop.',
-    ],
-  },
   {
     key: 'B', title: 'Supporting Materials', prompt: 'Which materials do you provide to students?',
     checkboxes: [
@@ -87,7 +99,6 @@ const TPI_SECTIONS = [
       'Students discuss questions with peers',
       'Students work in small groups',
       'Students complete in-class worksheets or tasks',
-      'Use of clickers or polling',
       'Demonstrations or models used in class',
       'Students engage in problem-solving during class',
       'Students present or share work',
@@ -333,6 +344,11 @@ export default function InventoriesPage() {
             </div>
           ))}
           <button onClick={() => setStep(2)} disabled={Object.keys(tsi).length < TSI_ITEMS.length} style={{ ...btn(C.navy), opacity: Object.keys(tsi).length < TSI_ITEMS.length ? 0.5 : 1 }}>Next</button>
+          <div style={{ marginTop: 10 }}>
+            <button onClick={() => finish(true)} disabled={saving} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, textDecoration: 'underline', cursor: 'pointer', padding: 0 }}>
+              Skip &rarr; Go straight to planning
+            </button>
+          </div>
         </div>
       )}
 
@@ -355,6 +371,11 @@ export default function InventoriesPage() {
             </div>
           ))}
           <button onClick={() => setStep(3)} disabled={Object.keys(tpi).length < TPI_PERSPECTIVES.length} style={{ ...btn(C.navy), opacity: Object.keys(tpi).length < TPI_PERSPECTIVES.length ? 0.5 : 1 }}>Next</button>
+          <div style={{ marginTop: 10 }}>
+            <button onClick={() => finish(true)} disabled={saving} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, textDecoration: 'underline', cursor: 'pointer', padding: 0 }}>
+              Skip &rarr; Go straight to planning
+            </button>
+          </div>
         </div>
       )}
 
@@ -376,13 +397,18 @@ export default function InventoriesPage() {
             </div>
           ))}
           <button onClick={() => setStep(4)} disabled={Object.keys(phil).length < PHILOSOPHY_ITEMS.length} style={{ ...btn(C.navy), opacity: Object.keys(phil).length < PHILOSOPHY_ITEMS.length ? 0.5 : 1 }}>Next</button>
+          <div style={{ marginTop: 10 }}>
+            <button onClick={() => finish(true)} disabled={saving} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, textDecoration: 'underline', cursor: 'pointer', padding: 0 }}>
+              Skip &rarr; Go straight to planning
+            </button>
+          </div>
         </div>
       )}
 
       {step === 4 && (
         <div style={box}>
           <h2 style={{ color: C.navy, fontSize: 16 }}>4. Teaching Practices Inventory</h2>
-          <p style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>Check everything that applies. This is about your current practices, not right/wrong answers.</p>
+          <p style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>Rate how often each applies to your teaching. This is about your current practices, not right/wrong answers.</p>
 
           {TPI_SECTIONS.filter((sec) => !sec.conditional || hasTA).map((sec) => (
             <div key={sec.key} style={{ marginBottom: 22 }}>
@@ -399,10 +425,28 @@ export default function InventoriesPage() {
 
               {sec.checkboxes.map((text, i) => {
                 const id = `${sec.key}_${i}`
+                const val = wieman[id] ?? null
                 return (
-                  <label key={id} style={{ display: 'block', fontSize: 13, marginBottom: 5, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={!!wieman[id]} onChange={() => setWieman(s => ({ ...s, [id]: !s[id] }))} /> {text}
-                  </label>
+                  <div key={id} style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 13, marginBottom: 4 }}>{text}</div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {FREQUENCY_SCALE.map((opt, scaleVal) => (
+                        <button
+                          key={opt} type="button"
+                          onClick={() => setWieman(s => ({ ...s, [id]: scaleVal }))}
+                          style={{
+                            flex: 1, padding: '6px 4px', fontSize: 11, borderRadius: 6, cursor: 'pointer',
+                            border: `1px solid ${val === scaleVal ? C.gold : C.border}`,
+                            background: val === scaleVal ? '#fff8ee' : '#fff',
+                            color: val === scaleVal ? C.navy : C.muted,
+                            fontWeight: val === scaleVal ? 700 : 400,
+                          }}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )
               })}
             </div>
@@ -413,6 +457,11 @@ export default function InventoriesPage() {
           </label>
 
           <button onClick={proceedToReview} style={btn(C.navy)}>Next: Review Findings</button>
+          <div style={{ marginTop: 10 }}>
+            <button onClick={() => finish(true)} disabled={saving} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, textDecoration: 'underline', cursor: 'pointer', padding: 0 }}>
+              Skip &rarr; Go straight to planning
+            </button>
+          </div>
         </div>
       )}
 
@@ -430,7 +479,8 @@ export default function InventoriesPage() {
             {Object.keys(tsiFindings).map((cluster) => (
               <div key={cluster} style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span>{cluster}</span><span style={{ color: C.muted }}>{tsiFindings[cluster]}</span>
+                  <span title={TSI_CLUSTER_INFO[cluster]} style={{ cursor: 'help', textDecoration: 'underline dotted' }}>{cluster}</span>
+                  <span style={{ color: C.muted }}>{tsiFindings[cluster]}</span>
                 </div>
                 <input type="range" min={0} max={21} value={tsiFindings[cluster]}
                   onChange={(e) => setTsiFindings(s => ({ ...s, [cluster]: Number(e.target.value) }))}
@@ -444,7 +494,8 @@ export default function InventoriesPage() {
             {Object.keys(tpiFindings).map((persp) => (
               <div key={persp} style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span>{persp}</span><span style={{ color: C.muted }}>{tpiFindings[persp]}</span>
+                  <span title={TPI_PERSPECTIVE_INFO[persp]} style={{ cursor: 'help', textDecoration: 'underline dotted' }}>{persp}</span>
+                  <span style={{ color: C.muted }}>{tpiFindings[persp]}</span>
                 </div>
                 <input type="range" min={1} max={5} value={tpiFindings[persp]}
                   onChange={(e) => setTpiFindings(s => ({ ...s, [persp]: Number(e.target.value) }))}
@@ -458,7 +509,8 @@ export default function InventoriesPage() {
             {Object.keys(philFindings).map((p) => (
               <div key={p} style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span>{p}</span><span style={{ color: C.muted }}>{philFindings[p]}</span>
+                  <span title={PHILOSOPHY_INFO[p]} style={{ cursor: 'help', textDecoration: 'underline dotted' }}>{p}</span>
+                  <span style={{ color: C.muted }}>{philFindings[p]}</span>
                 </div>
                 <input type="range" min={-2} max={2} value={philFindings[p]}
                   onChange={(e) => setPhilFindings(s => ({ ...s, [p]: Number(e.target.value) }))}
