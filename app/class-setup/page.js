@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useRequireAuth } from '@/lib/useRequireAuth'
 import { COLORS as C, FONT_BODY } from '@/lib/theme'
@@ -22,7 +22,7 @@ function toggle(arr, value) {
   return arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value]
 }
 
-export default function ClassSetupPage() {
+function ClassSetupInner() {
   const authChecked = useRequireAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -165,4 +165,10 @@ export default function ClassSetupPage() {
   )
 }
 
-
+export default function ClassSetupPage() {
+  return (
+    <Suspense fallback={null}>
+      <ClassSetupInner />
+    </Suspense>
+  )
+}
