@@ -70,6 +70,18 @@ export async function POST(request) {
     // documents to lean on harder for THIS teacher, not a separate source
     // of truth. Absent or skipped inventories just mean no extra hint -
     // generation still works fine on steering docs alone.
+    // Grade(s)/subject(s) this teacher actually teaches (Class Setup step,
+    // now required before Year Plan) -- real, structured context, distinct
+    // from the free-text profileContext derived from inventories below.
+    let classContext = ''
+    {
+      const classSetup = await sbSelect('teacher_class_setup', `?user_id=eq.${user.id}&select=grades,subjects&limit=1`)
+      if (classSetup.length) {
+        const { grades, subjects } = classSetup[0]
+        classContext = `\n\nTHIS TEACHER TEACHES: Grade(s) ${grades.join(', ')}, Subject(s): ${subjects.join(', ')}. Generate content appropriate to these grade levels and subjects specifically -- do not assume a different grade or subject.`
+      }
+    }
+
     let profileContext = ''
     {
       const [inv] = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=tsi_dominant,tsi_adjusted,tpi_dominant,tpi_adjusted,philosophy_dominant,philosophy_adjusted,fte_percentage,subjects,grades,time_distribution,curriculum_model,school_calendar_summary,skipped&limit=1`)
@@ -187,7 +199,7 @@ Theme: ${theme || 'not specified'}
 ${numProjects ? `Number of hands-on projects: ${numProjects}` : ''}
 ${numWorksheets ? `Number of worksheets: ${numWorksheets}` : ''}
 ${parentContext}
-${steeringContext}${resourcesContext}${profileContext}${bcCurriculumContext}${pacingContext}
+${steeringContext}${resourcesContext}${classContext}${profileContext}${bcCurriculumContext}${pacingContext}
 
 Return the plan content as clean, well-structured Markdown suitable for direct display and .txt export.`
 
@@ -210,6 +222,7 @@ Return the plan content as clean, well-structured Markdown suitable for direct d
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
 
 
 
