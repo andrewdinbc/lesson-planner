@@ -28,6 +28,8 @@ function ClassSetupInner() {
   const searchParams = useSearchParams()
   const [prefilledFromPlan, setPrefilledFromPlan] = useState(false)
   const [grades, setGrades] = useState([])
+  const [province, setProvince] = useState('BC')
+  const [customCurriculumUrl, setCustomCurriculumUrl] = useState('')
   const [subjects, setSubjects] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -39,6 +41,8 @@ function ClassSetupInner() {
         if (d.setup) {
           setGrades(d.setup.grades || [])
           setSubjects(d.setup.subjects || [])
+          setProvince(d.setup.province || 'BC')
+          setCustomCurriculumUrl(d.setup.custom_curriculum_url || '')
         } else {
           // No saved setup yet -- if we arrived here from Upload &
           // Modify My Previous Plan with inferred values, pre-fill from
@@ -69,7 +73,7 @@ function ClassSetupInner() {
     try {
       const res = await fetch('/api/class-setup', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ grades, subjects }),
+        body: JSON.stringify({ grades, subjects, province, customCurriculumUrl }),
       })
       if (!res.ok) throw new Error((await res.json()).error || 'Failed to save')
       router.push('/dashboard')
@@ -134,6 +138,37 @@ function ClassSetupInner() {
         </div>
 
         <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 6 }}>What province do you teach in?</div>
+          <p style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
+            We assume BC by default and use the real BC curriculum (curriculum.gov.bc.ca) to build your plans. If
+            you're somewhere else, tell us and share a link to your provincial curriculum -- we'll use that as
+            reference material instead and do our best to adapt to it. This part of the system is still BC-first,
+            so non-BC support may be less complete for now.
+          </p>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <button
+              type="button" onClick={() => setProvince('BC')}
+              style={province === 'BC' ? allPill(true) : pill(false)}
+            >
+              BC (default)
+            </button>
+            <button
+              type="button" onClick={() => setProvince('Other')}
+              style={province === 'Other' ? allPill(true) : pill(false)}
+            >
+              Somewhere else
+            </button>
+          </div>
+          {province === 'Other' && (
+            <input
+              type="url" value={customCurriculumUrl} onChange={(e) => setCustomCurriculumUrl(e.target.value)}
+              placeholder="Link to your provincial curriculum (e.g. https://...)"
+              style={{ width: '100%', padding: 10, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 14, boxSizing: 'border-box' }}
+            />
+          )}
+        </div>
+
+        <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 10 }}>Subject(s) you teach</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button
@@ -172,3 +207,4 @@ export default function ClassSetupPage() {
     </Suspense>
   )
 }
+
