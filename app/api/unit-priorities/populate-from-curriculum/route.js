@@ -112,15 +112,28 @@ export async function POST() {
       }
 
       const clusteredUnits = outcome.value
-      const sourceUrl = gradeBlocks[0].sourceUrl
+      // BUG FIX: source_url was hardcoded to the FIRST grade fetched
+      // (gradeBlocks[0]) for every unit, regardless of which grade(s)
+      // that specific unit actually covers -- confirmed via real data
+      // that every single unit was showing a Grade 4 link even when
+      // tagged Grade 5, which made the whole populate feature look
+      // grade-misaligned even though the underlying curriculum fetch
+      // (bc_curriculum_cache) was correctly grade-specific the whole
+      // time. Now builds each unit's source link(s) from its own
+      // `grades` field.
+      const sourceUrlByGrade = Object.fromEntries(gradeBlocks.map((g) => [g.grade, g.sourceUrl]))
 
       for (const unit of clusteredUnits) {
         const existing = await sbSelect('unit_priorities', `?user_id=eq.${user.id}&subject=eq.${encodeURIComponent(subject)}&unit_name=eq.${encodeURIComponent(unit.unitName)}&select=id&limit=1`)
+        const unitSourceUrl = (unit.grades || [])
+          .map((g) => sourceUrlByGrade[g])
+          .filter(Boolean)
+          .join(' | ') || gradeBlocks[0].sourceUrl
         const row = {
           content_summary: unit.contentSummary,
           curricular_competency: unit.curricularCompetency,
           grades: unit.grades,
-          source_url: sourceUrl,
+          source_url: unitSourceUrl,
           high_scrutiny: ALWAYS_HIGH_SCRUTINY.includes(subject),
           updated_at: new Date().toISOString(),
         }
@@ -139,3 +152,4 @@ export async function POST() {
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
