@@ -2,9 +2,11 @@ import { getCurrentUser } from '@/lib/session'
 import { sbSelect } from '@/lib/supabase'
 
 // Powers checkmarks + greyed-out styling on the Dashboard's numbered
-// onboarding steps. "Completed" = real data exists OR the step was
-// explicitly skipped (teacher_step_skips, or inventories' own dedicated
-// skipped column).
+// onboarding steps. Returns one of three states per step, not a boolean --
+// 'done' (real data exists), 'skipped' (explicitly opted out), or
+// 'incomplete'. These must render differently: a skip is not a checkmark,
+// it's an acknowledged gap. Collapsing skipped into the same boolean as
+// done was the bug that made both look identical in the UI.
 //
 // IMPORTANT: each check runs isolated (safeCheck wraps every query in its
 // own try/catch) rather than one Promise.all where a single failing query
@@ -16,7 +18,7 @@ async function safeCheck(fn) {
     return await fn()
   } catch (e) {
     console.error('dashboard-status check failed (isolated, others unaffected):', e.message)
-    return false
+    return 'incomplete'
   }
 }
 
@@ -32,27 +34,34 @@ export async function GET() {
   const [inventories, classSetup, yearPlan, unitPriorities, weeklySchedule, resources] = await Promise.all([
     safeCheck(async () => {
       const rows = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=completed_at,skipped&limit=1`)
-      return rows.length > 0 && !!(rows[0].completed_at || rows[0].skipped)
+      if (!rows.length) return 'incomplete'
+      if (rows[0].completed_at) return 'done'
+      if (rows[0].skipped) return 'skipped'
+      return 'incomplete'
     }),
     safeCheck(async () => {
       const rows = await sbSelect('teacher_class_setup', `?user_id=eq.${user.id}&select=id&limit=1`)
-      return rows.length > 0 || await isSkipped(user.id, 'class_setup')
+      if (rows.length > 0) return 'done'
+      if (await isSkipped(user.id, 'class_setup')) return 'skipped'
+      return 'incomplete'
     }),
     safeCheck(async () => {
       const rows = await sbSelect('year_plan_lens_prefs', `?user_id=eq.${user.id}&select=id&limit=1`)
-      return rows.length > 0
+      return rows.length > 0 ? 'done' : 'incomplete'
     }),
     safeCheck(async () => {
       const rows = await sbSelect('unit_priorities', `?user_id=eq.${user.id}&select=id&limit=1`)
-      return rows.length > 0 || await isSkipped(user.id, 'unit_priorities')
+      if (rows.length > 0) return 'done'
+      if (await isSkipped(user.id, 'unit_priorities')) return 'skipped'
+      return 'incomplete'
     }),
     safeCheck(async () => {
       const rows = await sbSelect('weekly_schedule_prefs', `?user_id=eq.${user.id}&select=id&limit=1`)
-      return rows.length > 0
+      return rows.length > 0 ? 'done' : 'incomplete'
     }),
     safeCheck(async () => {
       const rows = await sbSelect('teacher_resources', `?user_id=eq.${user.id}&select=id&limit=1`)
-      return rows.length > 0
+      return rows.length > 0 ? 'done' : 'incomplete'
     }),
   ])
 
