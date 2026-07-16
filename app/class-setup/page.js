@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useRequireAuth } from '@/lib/useRequireAuth'
 import { COLORS as C, FONT_BODY } from '@/lib/theme'
 
@@ -25,6 +25,8 @@ function toggle(arr, value) {
 export default function ClassSetupPage() {
   const authChecked = useRequireAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const [prefilledFromPlan, setPrefilledFromPlan] = useState(false)
   const [grades, setGrades] = useState([])
   const [subjects, setSubjects] = useState([])
   const [saving, setSaving] = useState(false)
@@ -37,9 +39,24 @@ export default function ClassSetupPage() {
         if (d.setup) {
           setGrades(d.setup.grades || [])
           setSubjects(d.setup.subjects || [])
+        } else {
+          // No saved setup yet -- if we arrived here from Upload &
+          // Modify My Previous Plan with inferred values, pre-fill from
+          // those instead of starting blank. Still fully editable/
+          // overridable before saving.
+          const gParam = searchParams.get('grades')
+          const sParam = searchParams.get('subjects')
+          if (gParam || sParam) {
+            const g = gParam ? gParam.split(',').filter(Boolean) : []
+            const s = sParam ? sParam.split(',').filter(Boolean) : []
+            if (g.length) setGrades(g)
+            if (s.length) setSubjects(s)
+            if (g.length || s.length) setPrefilledFromPlan(true)
+          }
         }
       })
       .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function save() {
@@ -91,6 +108,12 @@ export default function ClassSetupPage() {
           content — is actually built around your real grades and subjects instead of guessing.
         </p>
 
+        {prefilledFromPlan && (
+          <div style={{ background: '#eef8f0', border: '1px solid #b8e0c4', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 12, color: '#1a7a3e' }}>
+            ✓ Pre-filled from your uploaded plan — double-check these and adjust anything before saving.
+          </div>
+        )}
+
         <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 10 }}>Grade(s) you teach</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -141,4 +164,5 @@ export default function ClassSetupPage() {
     </div>
   )
 }
+
 
