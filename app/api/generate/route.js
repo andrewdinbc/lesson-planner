@@ -90,6 +90,25 @@ export async function POST(request) {
       }
     }
 
+    // Teacher's own Resources -- separate system from admin steering docs
+    // above. Each teacher can add links/notes to things they personally
+    // like or have bought (see app/resources/page.js); scoped to just
+    // this teacher, unlike steering_documents which is global. Much
+    // lighter-weight injection than steering docs -- these are pointers
+    // the AI can reference/suggest, not source material to be grounded in.
+    let resourcesContext = ''
+    {
+      const resources = await sbSelect('teacher_resources', `?user_id=eq.${user.id}&select=title,url,notes&order=created_at.desc&limit=30`)
+      if (resources.length) {
+        const list = resources.map((r) => {
+          const urlPart = r.url ? ` (${r.url})` : ''
+          const notesPart = r.notes ? ` -- ${r.notes}` : ''
+          return `- ${r.title}${urlPart}${notesPart}`
+        }).join('\n')
+        resourcesContext = '\n\nTHIS TEACHER\'S OWN PREFERRED RESOURCES -- reference or suggest these where genuinely relevant to what you\'re generating, but don\'t force them in if nothing fits:\n' + list
+      }
+    }
+
     // Teacher inventory profile (optional, skippable at onboarding) - a
     // light-touch style hint, NOT a substitute for the steering material
     // above. This tells the AI which parts of the (mandatory) steering
@@ -213,7 +232,7 @@ Theme: ${theme || 'not specified'}
 ${numProjects ? `Number of hands-on projects: ${numProjects}` : ''}
 ${numWorksheets ? `Number of worksheets: ${numWorksheets}` : ''}
 ${parentContext}
-${steeringContext}${profileContext}${bcCurriculumContext}${pacingContext}
+${steeringContext}${resourcesContext}${profileContext}${bcCurriculumContext}${pacingContext}
 
 Return the plan content as clean, well-structured Markdown suitable for direct display and .txt export.`
 
@@ -236,6 +255,7 @@ Return the plan content as clean, well-structured Markdown suitable for direct d
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
 
 
 
