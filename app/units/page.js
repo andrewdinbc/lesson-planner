@@ -101,6 +101,22 @@ export default function UnitsPage() {
           All units start at equal priority. Raise a slider to give a unit more time this year (e.g. Fractions or Algebra typically need more than others). Uncheck a unit to remove it from this year's plan.
         </p>
 
+        <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
+          <label style={{ fontSize: 13 }}>
+            Instructional weeks available this year
+            <input
+              type="number" value={weeksAvailable}
+              onChange={(e) => { setWeeksAvailable(Number(e.target.value)); setWeeksSource('manual') }}
+              style={{ marginLeft: 10, width: 80, padding: 6, border: `1px solid ${C.border}`, borderRadius: 6 }}
+            />
+          </label>
+          <p style={{ fontSize: 11, color: '#999', margin: '6px 0 0' }}>
+            {weeksSource === 'calendar' && '✓ From your uploaded district calendar (set on the Year Plan page).'}
+            {weeksSource === 'default' && "Using a standard 36-week default until you upload your district calendar on the Year Plan page."}
+            {weeksSource === 'manual' && 'Manually overridden.'}
+          </p>
+        </div>
+
         {classSetupStatus === 'missing' && (
           <div style={{ background: '#fdf3e3', border: '1px solid #e8c88a', borderRadius: 8, padding: 16, marginBottom: 16 }}>
             <p style={{ fontSize: 13, color: '#7a5a1e', margin: '0 0 10px' }}>
@@ -131,16 +147,15 @@ export default function UnitsPage() {
         <div style={{ marginBottom: 16 }}>
           <button
             onClick={populateFromCurriculum} disabled={populating || classSetupStatus !== 'present'}
-            title="Pulls real content from curriculum.gov.bc.ca for your grade(s) and groups it into units automatically -- for Language Arts, Math, Science, and Social Studies. Split grades are supported: content from every grade you teach gets combined."
+            title={classSetupStatus !== 'present' ? 'Fill out "What do you teach?" first' : 'Pulls real content from curriculum.gov.bc.ca for your grade(s) and groups it into units automatically -- for Language Arts, Math, Science, and Social Studies. Split grades are supported.'}
             style={{
               padding: '10px 20px', background: C.navy, color: '#fff', border: 'none', borderRadius: 6,
               fontWeight: 600, fontSize: 13,
               cursor: (populating || classSetupStatus !== 'present') ? 'not-allowed' : 'pointer',
               opacity: (populating || classSetupStatus !== 'present') ? 0.5 : 1,
             }}
-            title={classSetupStatus !== 'present' ? 'Fill out "What do you teach?" first' : undefined}
           >
-            {populating ? 'Pulling from BC Curriculum…' : '📖 Populate from BC Curriculum'}
+            {populating ? 'Pulling from BC Curriculum… (can take up to a minute)' : '📖 Populate from BC Curriculum'}
           </button>
           {populateResult?.error && (
             <p style={{ fontSize: 12, color: '#a33', marginTop: 8 }}>{populateResult.error}</p>
@@ -184,15 +199,12 @@ export default function UnitsPage() {
                 const key = `${subject}::${u.unit_name}`
                 const isExpanded = expandedCompetency[key]
                 return (
-                  <div key={u.unit_name} style={{ marginBottom: 10, opacity: u.removed ? 0.4 : 1, borderBottom: `1px solid ${C.border}`, paddingBottom: 8 }}>
+                  <div key={u.unit_name} style={{ marginBottom: 12, opacity: u.removed ? 0.4 : 1, borderBottom: `1px solid ${C.border}`, paddingBottom: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <input type="checkbox" checked={!u.removed} onChange={(e) => updateUnit(subject, u.unit_name, 'removed', !e.target.checked)} />
-                      <span
-                        style={{ flex: 1, fontSize: 14, cursor: u.content_summary ? 'help' : 'default', textDecoration: u.content_summary ? 'underline dotted' : 'none' }}
-                        title={u.content_summary || undefined}
-                      >
+                      <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>
                         {u.unit_name}
-                        {u.grades?.length > 0 && <span style={{ fontSize: 11, color: '#999', marginLeft: 6 }}>(Gr. {u.grades.join('/')})</span>}
+                        {u.grades?.length > 0 && <span style={{ fontSize: 11, color: '#999', marginLeft: 6, fontWeight: 400 }}>(Gr. {u.grades.join('/')})</span>}
                       </span>
                       <input
                         type="range" min="0.25" max="3" step="0.25" value={u.priority} disabled={u.removed}
@@ -201,8 +213,18 @@ export default function UnitsPage() {
                       />
                       <span style={{ fontSize: 12, color: '#888', width: 32 }}>{u.priority}×</span>
                     </div>
+
+                    {/* Content is the primary focus, per Aj's instruction -- shown
+                        directly, not hidden behind hover or a toggle. Curricular
+                        Competency stays collapsed by default underneath it. */}
+                    {u.content_summary && (
+                      <p style={{ fontSize: 12, color: '#555', marginTop: 6, marginLeft: 30, marginBottom: 0, whiteSpace: 'pre-wrap' }}>
+                        {u.content_summary}
+                      </p>
+                    )}
+
                     {u.curricular_competency && (
-                      <div style={{ marginLeft: 30, marginTop: 4 }}>
+                      <div style={{ marginLeft: 30, marginTop: 6 }}>
                         <button
                           onClick={() => setExpandedCompetency((prev) => ({ ...prev, [key]: !prev[key] }))}
                           style={{ background: 'none', border: 'none', color: C.navy, fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
@@ -221,22 +243,6 @@ export default function UnitsPage() {
           )
         })}
 
-        <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
-          <label style={{ fontSize: 13 }}>
-            Instructional weeks available this year
-            <input
-              type="number" value={weeksAvailable}
-              onChange={(e) => { setWeeksAvailable(Number(e.target.value)); setWeeksSource('manual') }}
-              style={{ marginLeft: 10, width: 80, padding: 6, border: `1px solid ${C.border}`, borderRadius: 6 }}
-            />
-          </label>
-          <p style={{ fontSize: 11, color: '#999', margin: '6px 0 0' }}>
-            {weeksSource === 'calendar' && '✓ From your uploaded district calendar (set on the Year Plan page).'}
-            {weeksSource === 'default' && "Using a standard 36-week default until you upload your district calendar on the Year Plan page."}
-            {weeksSource === 'manual' && 'Manually overridden.'}
-          </p>
-        </div>
-
         <button onClick={save} disabled={saving} style={{ padding: '10px 24px', background: C.gold, color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>
           {saving ? 'Saving…' : 'Save Priorities'}
         </button>
@@ -244,6 +250,3 @@ export default function UnitsPage() {
     </div>
   )
 }
-
-
-
