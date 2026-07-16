@@ -18,6 +18,7 @@ function GenerateForm() {
   const [theme, setTheme] = useState('')
   const [numProjects, setNumProjects] = useState('')
   const [numWorksheets, setNumWorksheets] = useState('')
+  const [weekNumber, setWeekNumber] = useState('')
   const [generating, setGenerating] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
@@ -36,7 +37,7 @@ function GenerateForm() {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, title, subject, grade, theme, numProjects, numWorksheets, parentId }),
+        body: JSON.stringify({ type, title, subject, grade, theme, numProjects, numWorksheets, parentId, weekNumber: weekNumber || undefined }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Generation failed')
@@ -82,6 +83,16 @@ function GenerateForm() {
                 style={{ flex: 1, padding: 10, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: 'inherit' }} />
             </div>
 
+            {type !== 'year' && (
+              <Tooltip text="Optional -- if you've set up a Year Plan lens, tell us which instructional week this falls in and the plan will be framed around that period's theme instead of a generic one." width={260}>
+                <input
+                  type="number" min="1" value={weekNumber} onChange={(e) => setWeekNumber(e.target.value)}
+                  placeholder="Instructional week # (optional -- ties this to your Year Plan)"
+                  style={{ width: '100%', padding: 10, marginBottom: 16, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                />
+              </Tooltip>
+            )}
+
             {error && <div style={{ background: '#fdecea', border: '1px solid #f5b7b1', borderRadius: 8, padding: 12, color: '#c0392b', marginBottom: 16 }}>{error}</div>}
 
             <Tooltip text="Generates this lesson/unit plan using your steering documents to ground it — takes a moment, nothing is saved until it finishes." width={240}>
@@ -120,6 +131,7 @@ export default function GeneratePage() {
     </Suspense>
   )
 }
+
 
 
 
