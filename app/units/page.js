@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 
 import { COLORS as C, FONT_BODY } from '@/lib/theme'
+import { reorderWithinSubject } from '@/lib/unit-priorities'
 const ALWAYS_HIGH_SCRUTINY = ['Language Arts', 'Mathematics']
 
 export default function UnitsPage() {
@@ -22,6 +23,18 @@ export default function UnitsPage() {
   const [expandedCompetency, setExpandedCompetency] = useState({}) // `${subject}::${unit_name}` -> bool
   const [feedbackText, setFeedbackText] = useState('')
   const [feedbackStatus, setFeedbackStatus] = useState('idle') // 'idle' | 'sending' | 'sent' | 'error'
+  const [dragInfo, setDragInfo] = useState(null) // { subject, fromIndex }
+
+  function handleDrop(subject, toIndex) {
+    if (!dragInfo || dragInfo.subject !== subject) { setDragInfo(null); return }
+    setUnits((prev) => {
+      const subjectRows = prev.filter((u) => u.subject === subject)
+      const otherRows = prev.filter((u) => u.subject !== subject)
+      const reordered = reorderWithinSubject(subjectRows, dragInfo.fromIndex, toIndex)
+      return [...otherRows, ...reordered]
+    })
+    setDragInfo(null)
+  }
 
   async function submitFeedback() {
     if (!feedbackText.trim()) return
@@ -91,6 +104,9 @@ export default function UnitsPage() {
     (acc[u.subject] ||= []).push(u)
     return acc
   }, {})
+  for (const subject in bySubject) {
+    bySubject[subject].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+  }
 
   function updateUnit(subject, unit_name, field, value) {
     setUnits((prev) => prev.map((u) => (u.subject === subject && u.unit_name === unit_name ? { ...u, [field]: value } : u)))
@@ -98,7 +114,7 @@ export default function UnitsPage() {
 
   async function save() {
     setSaving(true)
-    const updates = units.map((u) => ({ subject: u.subject, unit_name: u.unit_name, priority: u.priority, high_scrutiny: u.high_scrutiny, removed: u.removed }))
+    const updates = units.map((u) => ({ subject: u.subject, unit_name: u.unit_name, priority: u.priority, high_scrutiny: u.high_scrutiny, removed: u.removed, sort_order: u.sort_order ?? 0 }))
     const res = await fetch('/api/unit-priorities', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -117,7 +133,7 @@ export default function UnitsPage() {
         <a href="/dashboard" style={{ color: C.navy, fontSize: 13 }}>← Dashboard</a>
         <h1 style={{ color: C.navy, fontSize: 28, margin: '8px 0 4px' }}>Unit Priorities</h1>
         <p style={{ color: '#666', fontSize: 13, marginTop: 0 }}>
-          All units start at equal priority. Raise a slider to give a unit more time this year (e.g. Fractions or Algebra typically need more than others). Uncheck a unit to remove it from this year's plan.
+          All units start at equal priority. Raise a slider to give a unit more time this year (e.g. Fractions or Algebra typically need more than others). Uncheck a unit to remove it from this year's plan. Drag the ⠿ handle to reorder the sequence you teach units in within a subject.
         </p>
 
         <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
@@ -242,12 +258,30 @@ export default function UnitsPage() {
                   </label>
                 )}
               </div>
-              {subjectUnits.map((u) => {
+              {subjectUnits.map((u, idx) => {
                 const key = `${subject}::${u.unit_name}`
                 const isExpanded = expandedCompetency[key]
+                const isDragging = dragInfo?.subject === subject && dragInfo?.fromIndex === idx
                 return (
-                  <div key={u.unit_name} style={{ marginBottom: 12, opacity: u.removed ? 0.4 : 1, borderBottom: `1px solid ${C.border}`, paddingBottom: 10 }}>
+                  <div
+                    key={u.unit_name}
+                    draggable
+                    onDragStart={() => setDragInfo({ subject, fromIndex: idx })}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => { e.preventDefault(); handleDrop(subject, idx) }}
+                    style={{
+                      marginBottom: 12, opacity: u.removed ? 0.4 : isDragging ? 0.3 : 1,
+                      borderBottom: `1px solid ${C.border}`, paddingBottom: 10,
+                      background: isDragging ? '#f2f0ea' : 'transparent',
+                    }}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span
+                        title="Drag to reorder teaching sequence"
+                        style={{ cursor: 'grab', color: '#bbb', fontSize: 14, userSelect: 'none' }}
+                      >
+                        ⠿
+                      </span>
                       <input type="checkbox" checked={!u.removed} onChange={(e) => updateUnit(subject, u.unit_name, 'removed', !e.target.checked)} />
                       <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>
                         {u.unit_name}
@@ -297,4 +331,5 @@ export default function UnitsPage() {
     </div>
   )
 }
+
 

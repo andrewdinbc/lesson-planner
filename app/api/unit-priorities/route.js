@@ -9,7 +9,7 @@ export async function GET() {
   const user = await getCurrentUser()
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
   try {
-    let rows = await sbSelect('unit_priorities', `?user_id=eq.${user.id}&select=*&order=subject.asc`)
+    let rows = await sbSelect('unit_priorities', `?user_id=eq.${user.id}&select=*&order=subject.asc,sort_order.asc`)
 
     if (!rows.length) {
       const [inv] = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=subjects&limit=1`)
@@ -41,12 +41,13 @@ export async function POST(request) {
           priority: u.priority,
           high_scrutiny: u.high_scrutiny,
           removed: u.removed,
+          sort_order: u.sort_order,
           updated_at: new Date().toISOString(),
         })
       }
     }
 
-    const rows = await sbSelect('unit_priorities', `?user_id=eq.${user.id}&select=*&order=subject.asc`)
+    const rows = await sbSelect('unit_priorities', `?user_id=eq.${user.id}&select=*&order=subject.asc,sort_order.asc`)
 
     let mismatch = null
     if (body.totalInstructionalWeeksAvailable) {
@@ -58,3 +59,4 @@ export async function POST(request) {
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
+
