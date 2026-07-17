@@ -108,6 +108,14 @@ export default function YearPlanPage() {
     setPeriods((prev) => prev.map((p) => (p.period_label === periodLabel ? { ...p, period_pct: value } : p)))
   }
 
+  // "I teach this interdisciplinary" -- lets a period's % legitimately
+  // overlap with others (e.g. Science content taught inside Language Arts
+  // time) instead of being forced to share a strict 100% pie. Capped at
+  // 135% total server-side (lib/year-plan.js#capInterdisciplinaryTotal).
+  function toggleInterdisciplinary(periodLabel) {
+    setPeriods((prev) => prev.map((p) => (p.period_label === periodLabel ? { ...p, interdisciplinary: !p.interdisciplinary } : p)))
+  }
+
   async function save() {
     setSaving(true)
     const res = await fetch('/api/year-plan-lens', {
@@ -353,12 +361,20 @@ export default function YearPlanPage() {
           <div style={{ padding: 32, textAlign: 'center', color: '#888' }}>Loading…</div>
         ) : (
           <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
               <h2 style={{ color: C.navy, fontSize: 16, margin: 0 }}>Year Structure</h2>
-              <span style={{ fontSize: 12, color: Math.round(total) === 100 ? C.green : C.gold }}>
+              <span style={{ fontSize: 12, color: Math.round(total) <= 100 ? C.green : Math.round(total) <= 135 ? C.gold : '#a33' }}>
                 {Math.round(total)}% allocated
               </span>
             </div>
+            <p style={{ fontSize: 11, color: '#999', margin: '0 0 12px' }}>
+              This is an estimate to help guide your Weekly Schedule block structure — don’t spend too much time getting the specifics exact.
+            </p>
+            {total > 100 && (
+              <div style={{ fontSize: 12, color: '#7a5a1e', background: '#fdf3e3', border: '1px solid #e8c88a', borderRadius: 6, padding: '8px 12px', marginBottom: 12 }}>
+                You’re over 100% allocated. That’s expected if you marked a period "I teach this interdisciplinary" — overlap is allowed up to 135% total. Otherwise, you may want to lower one or more periods.
+              </div>
+            )}
             {(() => {
               // Subjects below this share of the year are secondary (electives,
               // rotary blocks, etc.) and collapse into an expandable section at
@@ -380,11 +396,24 @@ export default function YearPlanPage() {
                           </span>
                         )}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleInterdisciplinary(p.period_label)}
+                        title="Let this period's % overlap with others instead of sharing a strict 100% pie -- e.g. Science content taught inside Language Arts time. Total allocation is still capped at 135%."
+                        style={{
+                          fontSize: 11, padding: '3px 8px', borderRadius: 12, cursor: 'pointer', whiteSpace: 'nowrap',
+                          border: `1px solid ${p.interdisciplinary ? C.gold : C.border}`,
+                          background: p.interdisciplinary ? '#fff8ee' : '#fff',
+                          color: p.interdisciplinary ? C.gold : '#888', fontWeight: p.interdisciplinary ? 700 : 400,
+                        }}
+                      >
+                        {p.interdisciplinary ? '✓ ' : ''}🔀 I teach this interdisciplinary
+                      </button>
                       <input
                         type="range" min="5" max="70" step="1" value={Math.round(p.period_pct)}
                         onChange={(e) => updatePeriodPct(p.period_label, Number(e.target.value))}
                         style={{ width: 160 }}
-                        title="Adjust this period's share of the year. Other periods rebalance proportionally when you save."
+                        title="Adjust this period's share of the year. Other periods rebalance proportionally when you save, unless it's marked interdisciplinary."
                       />
                       <span style={{ fontSize: 12, color: '#888', width: 40 }}>{Math.round(p.period_pct)}%</span>
                     </div>
