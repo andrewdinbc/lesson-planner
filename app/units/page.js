@@ -5,11 +5,19 @@ import { COLORS as C, FONT_BODY } from '@/lib/theme'
 import { reorderWithinSubject } from '@/lib/unit-priorities'
 import { ASSESSMENT_TYPES, currentInstructionalWeek, reminderStatus } from '@/lib/assessment-types'
 import { LA_CATEGORIES, categorizeLA } from '@/lib/language-arts-categories'
+import { LA_ELABORATIONS, elaborationsForCategory } from '@/lib/la-elaborations'
 const ALWAYS_HIGH_SCRUTINY = ['Language Arts', 'Mathematics']
+// Distinct color per Language Arts section so Reading/Writing/Oral read as
+// visually different at a glance, not just by text label.
+const LA_CAT_COLORS = {
+  reading: { bg: '#eef4fb', border: '#bcd6ef', text: '#2f5f8a' },
+  writing: { bg: '#eef8ef', border: '#bfe0c2', text: '#3c7a44' },
+  oral: { bg: '#f8f0fb', border: '#ddc2ea', text: '#7a3c8a' },
+}
 // Subjects appear in this order first (Language Arts, then Math), per Aj's
 // instruction that Language Arts should be discussed first, then Math.
 // Anything not listed here keeps whatever order it came in after these two.
-const SUBJECT_DISCUSSION_ORDER = ['Language Arts', 'Mathematics']
+const SUBJECT_DISCUSSION_ORDER = ['Language Arts', 'Mathematics', 'Science', 'Social Studies']
 function sortSubjectEntries(entries) {
   return [...entries].sort(([a], [b]) => {
     const ai = SUBJECT_DISCUSSION_ORDER.indexOf(a)
@@ -46,7 +54,9 @@ export default function UnitsPage() {
   const [defaultTypesDirty, setDefaultTypesDirty] = useState(false)
   const [currentWeek, setCurrentWeek] = useState(null)
   const [endWeekByUnit, setEndWeekByUnit] = useState({}) // `${subject}::${unit_name}` -> end_week, from the Timeline
-  const [collapsedSubjects, setCollapsedSubjects] = useState({}) // subject -> bool, minimize/expand so the page isn't so long
+  const [collapsedSubjects, setCollapsedSubjects] = useState({ Mathematics: true, 'Social Studies': true }) // subject -> bool, minimize/expand so the page isn't so long -- Math and Social Studies start minimized per Aj
+  const [openElaborations, setOpenElaborations] = useState({}) // LA category key -> bool
+  const [addingElabKey, setAddingElabKey] = useState(null)
   const [splitClassEnabled, setSplitClassEnabled] = useState(false) // A/B year rotation -- half the content is covered each year
   const [activeRotationYear, setActiveRotationYear] = useState('A')
   const [savingSplitClass, setSavingSplitClass] = useState(false)
@@ -197,6 +207,22 @@ export default function UnitsPage() {
     setCollapsedSubjects((prev) => ({ ...prev, [subject]: !prev[subject] }))
   }
 
+  // Quick-adds a unit from a Language Arts Elaboration idea, pre-tagged
+  // with the strands that idea covers (e.g. Novel Study -> reading+writing+oral).
+  async function addUnitFromElaboration(subject, elab) {
+    setAddingElabKey(elab.key)
+    try {
+      const res = await fetch('/api/unit-priorities', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ addUnit: { subject, unit_name: elab.label, la_categories: elab.covers } }),
+      })
+      const data = await res.json()
+      if (res.ok) setUnits(data.units || units)
+    } finally {
+      setAddingElabKey(null)
+    }
+  }
+
   async function saveSplitClassSettings(patch) {
     setSavingSplitClass(true)
     try {
@@ -255,7 +281,7 @@ export default function UnitsPage() {
         <a href="/dashboard" style={{ color: C.navy, fontSize: 13 }}>← Dashboard</a>
         <h1 style={{ color: C.navy, fontSize: 28, margin: '8px 0 4px' }}>Unit Priorities</h1>
         <p style={{ color: '#666', fontSize: 13, marginTop: 0 }}>
-          All units start at equal priority. Raise a slider to give a unit more time this year (e.g. Fractions or Algebra typically need more than others). Uncheck a unit to remove it from this year's plan. Drag the ⠿ handle to reorder the sequence you teach units in within a subject.
+          All units start at equal priority (1×). The slider is a relative time-weight, NOT a number of weeks — raising it to 2× means roughly double the instructional time of a 1× unit, not “2 weeks.” Uncheck a unit to remove it from this year's plan. Drag the ⠠ handle to reorder the sequence you teach units in within a subject.
         </p>
 
         <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
@@ -489,7 +515,7 @@ export default function UnitsPage() {
                     onChange={(e) => updateUnit(subject, u.unit_name, 'priority', Number(e.target.value))}
                     style={{ width: 140 }}
                   />
-                  <span style={{ fontSize: 12, color: '#888', width: 32 }}>{u.priority}×</span>
+                  <span style={{ fontSize: 12, color: '#888', width: 76 }} title="Relative priority weight, not a week count -- 1x = equal share, higher = more instructional time this year">{u.priority}× priority</span>
                   <select
                     value={u.assessment_type || ''}
                     onChange={(e) => updateUnit(subject, u.unit_name, 'assessment_type', e.target.value || null)}
@@ -515,6 +541,33 @@ export default function UnitsPage() {
                 {isOffRotation && (
                   <div style={{ fontSize: 11, color: '#999', marginLeft: 30, marginTop: 2 }}>
                     Not taught this rotation year (Year {u.year_rotation})
+                  </div>
+                )}
+
+                {isLanguageArts && (
+                  <div style={{ marginLeft: 30, marginTop: 4, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, color: '#999' }} title="Cross-strand: check more than one if this unit genuinely covers multiple areas -- e.g. a Novel Study touching Reading, Writing, and Oral all at once">
+                      Covers:
+                    </span>
+                    {LA_CATEGORIES.map((cat) => {
+                      const current = u.la_categories?.length ? u.la_categories : [u.la_category || categorizeLA(u.unit_name, u.content_summary)]
+                      const checked = current.includes(cat.key)
+                      return (
+                        <label key={cat.key} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: LA_CAT_COLORS[cat.key].text, cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const next = e.target.checked
+                                ? [...current, cat.key]
+                                : current.filter((k) => k !== cat.key)
+                              updateUnit(subject, u.unit_name, 'la_categories', next.length ? next : [cat.key])
+                            }}
+                          />
+                          {cat.label}
+                        </label>
+                      )
+                    })}
                   </div>
                 )}
 
@@ -563,9 +616,12 @@ export default function UnitsPage() {
                       <p style={{ marginTop: 8, marginBottom: 0, color: '#a33' }}>{exState.error}</p>
                     )}
                     {!savedForLater && exState?.examples?.length > 0 && (
-                      <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 18 }}>
-                        {exState.examples.map((ex, i) => <li key={i} style={{ marginBottom: 4 }}>{ex}</li>)}
-                      </ul>
+                      <div style={{ marginTop: 8, background: '#eaf6f4', border: '1px solid #a9d9d1', borderRadius: 6, padding: '8px 12px' }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: '#1f7a6c', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4 }}>✨ AI examples</div>
+                        <ul style={{ margin: 0, paddingLeft: 18, color: '#1f5f56' }}>
+                          {exState.examples.map((ex, i) => <li key={i} style={{ marginBottom: 4 }}>{ex}</li>)}
+                        </ul>
+                      </div>
                     )}
                   </div>
                 )}
@@ -591,9 +647,12 @@ export default function UnitsPage() {
                   </div>
                 )}
                 {examplesState[`${key}::content`]?.examples?.length > 0 && (
-                  <ul style={{ marginLeft: 30, marginTop: 4, marginBottom: 0, paddingLeft: 18, fontSize: 12, color: '#555' }}>
-                    {examplesState[`${key}::content`].examples.map((ex, i) => <li key={i} style={{ marginBottom: 4 }}>{ex}</li>)}
-                  </ul>
+                  <div style={{ marginLeft: 30, marginTop: 4, background: '#eaf6f4', border: '1px solid #a9d9d1', borderRadius: 6, padding: '8px 12px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#1f7a6c', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4 }}>✨ AI examples</div>
+                    <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#1f5f56' }}>
+                      {examplesState[`${key}::content`].examples.map((ex, i) => <li key={i} style={{ marginBottom: 4 }}>{ex}</li>)}
+                    </ul>
+                  </div>
                 )}
 
                 {u.curricular_competency && (
@@ -640,14 +699,55 @@ export default function UnitsPage() {
               {!isCollapsed && (
                 isLanguageArts ? (
                   LA_CATEGORIES.map((cat) => {
-                    const catUnits = subjectUnits.filter((u) => (u.la_category || categorizeLA(u.unit_name, u.content_summary)) === cat.key)
-                    if (!catUnits.length) return null
+                    const catUnits = subjectUnits.filter((u) => {
+                      const cats = u.la_categories?.length ? u.la_categories : [u.la_category || categorizeLA(u.unit_name, u.content_summary)]
+                      return cats.includes(cat.key)
+                    })
+                    const colors = LA_CAT_COLORS[cat.key]
+                    const elabOpen = openElaborations[cat.key]
+                    const catElaborations = elaborationsForCategory(cat.key)
                     return (
-                      <div key={cat.key} style={{ marginBottom: 16 }}>
-                        <h3 style={{ fontSize: 13, color: C.navy, fontWeight: 700, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                          {cat.label} <span style={{ fontSize: 11, color: '#999', fontWeight: 400, textTransform: 'none' }}>({catUnits.length})</span>
+                      <div key={cat.key} style={{ marginBottom: 16, background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, padding: 12 }}>
+                        <h3 style={{ fontSize: 13, color: colors.text, fontWeight: 700, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                          {cat.label} <span style={{ fontSize: 11, color: colors.text, opacity: 0.7, fontWeight: 400, textTransform: 'none' }}>({catUnits.length})</span>
                         </h3>
-                        {catUnits.map(renderUnitRow)}
+
+                        <button
+                          type="button"
+                          onClick={() => setOpenElaborations((prev) => ({ ...prev, [cat.key]: !prev[cat.key] }))}
+                          style={{ background: 'none', border: 'none', color: colors.text, fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0, marginBottom: elabOpen ? 8 : 12, textDecoration: 'underline' }}
+                        >
+                          {elabOpen ? '▾ Hide' : '▸ Show'} Elaboration ideas ({catElaborations.length})
+                        </button>
+
+                        {elabOpen && (
+                          <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {catElaborations.map((elab) => (
+                              <div key={elab.key} style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 6, padding: '8px 10px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontSize: 12, fontWeight: 700, color: C.navy }}>
+                                    {elab.label}
+                                    <span style={{ fontSize: 10, fontWeight: 400, color: '#999', marginLeft: 6 }}>
+                                      covers: {elab.covers.map((c) => LA_CATEGORIES.find((x) => x.key === c)?.label).join(', ')}
+                                    </span>
+                                  </div>
+                                  <p style={{ fontSize: 11, color: '#666', margin: '3px 0 0' }}>{elab.description}</p>
+                                </div>
+                                <button
+                                  onClick={() => addUnitFromElaboration(subject, elab)}
+                                  disabled={addingElabKey === elab.key}
+                                  style={{ padding: '4px 10px', background: colors.text, color: '#fff', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                >
+                                  {addingElabKey === elab.key ? 'Adding…' : '+ Add as unit'}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {catUnits.length > 0 ? catUnits.map(renderUnitRow) : (
+                          <p style={{ fontSize: 12, color: colors.text, opacity: 0.6, margin: 0 }}>No units here yet -- add one above or from the Elaboration ideas.</p>
+                        )}
                       </div>
                     )
                   })
