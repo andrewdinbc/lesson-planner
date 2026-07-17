@@ -41,6 +41,7 @@ export default function PlayGamePage({ params }) {
       {game.game_type === 'math_racer' && <MathRacerGame game={game} />}
       {game.game_type === 'muncher' && <MuncherGame game={game} />}
       {game.game_type === 'fact_dash' && <FactDashGame game={game} />}
+      {game.game_type === 'tycoon' && <TycoonGame game={game} />}
       {game.game_type === 'wordle' && <WordleGame game={game} />}
     </Shell>
   )
@@ -549,3 +550,100 @@ function FactDashGame({ game }) {
   )
 }
 
+
+// ── Trivia Tycoon: correct-answers-earn-currency shop upgrade ──────
+// Inspired by Duck Duck Merge ("make the highest level ducks to make the
+// most money") and Monkey Mart/My Perfect Hotel's "level up the store"
+// satisfaction. Coins come ONLY from correct answers -- there is no idle
+// ticking -- so the progress loop stays tied to actually engaging with
+// the content, unlike a pure clicker. Each coin threshold unlocks the
+// next visual tier of the shop.
+const TYCOON_TIERS = [
+  { min: 0, emoji: '🏚️', label: 'Empty Lot' },
+  { min: 100, emoji: '🏪', label: 'Corner Stand' },
+  { min: 250, emoji: '🏬', label: 'Shop' },
+  { min: 450, emoji: '🏢', label: 'Storefront' },
+  { min: 700, emoji: '🏰', label: 'Flagship Store' },
+  { min: 1000, emoji: '🏙️', label: 'Empire' },
+]
+const COINS_PER_CORRECT = 60
+function TycoonGame({ game }) {
+  const questions = game.game_data?.questions || []
+  const [idx, setIdx] = useState(0)
+  const [coins, setCoins] = useState(0)
+  const [selected, setSelected] = useState(null)
+  const [showResult, setShowResult] = useState(false)
+  const [finished, setFinished] = useState(false)
+  const [popup, setPopup] = useState(null) // "+60" floating text
+
+  const q = questions[idx]
+  const tier = [...TYCOON_TIERS].reverse().find((t) => coins >= t.min) || TYCOON_TIERS[0]
+  const nextTier = TYCOON_TIERS.find((t) => t.min > coins)
+
+  function pick(i) {
+    if (selected !== null) return
+    setSelected(i)
+    setShowResult(true)
+    if (i === q.correctIndex) {
+      playCorrect()
+      setCoins((c) => c + COINS_PER_CORRECT)
+      setPopup(`+${COINS_PER_CORRECT}`)
+    } else {
+      playWrong()
+      setPopup(null)
+    }
+    setTimeout(() => {
+      setSelected(null)
+      setShowResult(false)
+      setPopup(null)
+      if (idx + 1 < questions.length) setIdx(idx + 1)
+      else { setFinished(true); playVictoryFanfare() }
+    }, 1100)
+  }
+
+  if (!questions.length) return <p>No questions in this game.</p>
+
+  if (finished) {
+    return (
+      <div>
+        <h1 style={{ fontSize: 32, marginBottom: 4 }}>{tier.emoji}</h1>
+        <h2 style={{ fontSize: 22, marginBottom: 4 }}>Your shop reached: {tier.label}!</h2>
+        <p style={{ fontSize: 18, marginBottom: 16 }}>💰 {coins} coins earned</p>
+        <button onClick={() => window.location.reload()} style={playAgainStyle}>Play Again</button>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 48, position: 'relative' }}>
+          {tier.emoji}
+          {popup && <span style={{ position: 'absolute', top: -10, right: -20, fontSize: 16, color: '#ffd23f', fontWeight: 700 }}>{popup}</span>}
+        </div>
+        <p style={{ fontSize: 13, opacity: 0.85, margin: '4px 0 0' }}>{tier.label} · 💰 {coins} coins</p>
+        {nextTier && <p style={{ fontSize: 11, opacity: 0.6, margin: 0 }}>{nextTier.min - coins} coins to {nextTier.label} {nextTier.emoji}</p>}
+      </div>
+
+      <p style={{ opacity: 0.8, fontSize: 13, marginBottom: 4 }}>Question {idx + 1} of {questions.length}</p>
+      <h2 style={{ fontSize: 20, marginBottom: 20 }}>{q.question}</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        {q.choices.map((choice, i) => {
+          let bg = 'rgba(255,255,255,0.15)'
+          if (showResult) {
+            if (i === q.correctIndex) bg = '#1a7a3e'
+            else if (i === selected) bg = '#a33'
+          }
+          return (
+            <button key={i} onClick={() => pick(i)} disabled={selected !== null} style={{
+              padding: '16px 12px', fontSize: 15, fontWeight: 600, borderRadius: 10, border: 'none',
+              background: bg, color: '#fff', cursor: selected === null ? 'pointer' : 'default',
+            }}>
+              {choice}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}

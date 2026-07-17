@@ -289,6 +289,7 @@ export default function DayPlanPage() {
                           <button onClick={() => generateGame(b, 'math_racer')} style={aiActionBtnStyle}>🏎️ Math Racer</button>
                           <button onClick={() => generateGame(b, 'muncher')} style={aiActionBtnStyle}>🟡 Muncher</button>
                           <button onClick={() => generateGame(b, 'fact_dash')} style={aiActionBtnStyle}>🏃 Fact Dash</button>
+                          <button onClick={() => generateGame(b, 'tycoon')} style={aiActionBtnStyle}>🏪 Trivia Tycoon</button>
                         </div>
                         <button onClick={() => setAiPanelBlockId(null)} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 12, marginLeft: 'auto' }}>Close</button>
                       </div>
