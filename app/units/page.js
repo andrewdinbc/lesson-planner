@@ -55,12 +55,14 @@ export default function UnitsPage() {
   const rowRefs = useRef({}) // `${subject}::${unit_name}` -> DOM node, for measuring drag positions
   const [defaultAssessmentTypes, setDefaultAssessmentTypes] = useState(['quiz'])
   const [pendingAssessmentTypes, setPendingAssessmentTypes] = useState(['quiz']) // local checkbox state before "Save for later"
+  const [customAssessmentTypes, setCustomAssessmentTypes] = useState([]) // teacher-added types beyond the built-in ASSESSMENT_TYPES list, [{key,label}]
+  const [newCustomTypeLabel, setNewCustomTypeLabel] = useState('')
+  const [savingCustomType, setSavingCustomType] = useState(false)
   const [savingDefaultType, setSavingDefaultType] = useState(false)
   const [defaultTypesDirty, setDefaultTypesDirty] = useState(false)
   const [currentWeek, setCurrentWeek] = useState(null)
   const [endWeekByUnit, setEndWeekByUnit] = useState({}) // `${subject}::${unit_name}` -> end_week, from the Timeline
   const [collapsedSubjects, setCollapsedSubjects] = useState({ Mathematics: true, 'Social Studies': true }) // subject -> bool, minimize/expand so the page isn't so long -- Math and Social Studies start minimized per Aj
-  const [openElaborations, setOpenElaborations] = useState({}) // LA category key -> bool, default OPEN (elaboration ideas are the main focus)
   const [addingElabKey, setAddingElabKey] = useState(null)
   const [aiBuildingKey, setAiBuildingKey] = useState(null) // elab.key currently running "AI build me this unit"
   const [creativeBuildingKey, setCreativeBuildingKey] = useState(null) // elab.key currently running "AI: creative way to cover this"
@@ -91,6 +93,31 @@ export default function UnitsPage() {
       setDefaultTypesDirty(false)
     } finally {
       setSavingDefaultType(false)
+    }
+  }
+
+  // Lets a teacher add their own assessment type beyond the built-in list
+  // (e.g. "Reading Conference", "Running Record") -- saved per-teacher and
+  // merged into every ASSESSMENT_TYPES checklist/dropdown in this page.
+  async function addCustomAssessmentType() {
+    const label = newCustomTypeLabel.trim()
+    if (!label) return
+    const key = 'custom_' + label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+    if (customAssessmentTypes.some((t) => t.key === key) || ASSESSMENT_TYPES.some((t) => t.key === key)) {
+      setNewCustomTypeLabel('')
+      return // already exists, nothing to do
+    }
+    const next = [...customAssessmentTypes, { key, label }]
+    setSavingCustomType(true)
+    try {
+      await fetch('/api/assessment-settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ custom_assessment_types: next }),
+      })
+      setCustomAssessmentTypes(next)
+      setNewCustomTypeLabel('')
+    } finally {
+      setSavingCustomType(false)
     }
   }
 
@@ -221,6 +248,7 @@ export default function UnitsPage() {
         const types = d.default_assessment_types?.length ? d.default_assessment_types : ['quiz']
         setDefaultAssessmentTypes(types)
         setPendingAssessmentTypes(types)
+        setCustomAssessmentTypes(d.custom_assessment_types || [])
       })
       .catch(() => {})
 
@@ -244,6 +272,8 @@ export default function UnitsPage() {
       })
       .catch(() => {})
   }, [])
+
+  const allAssessmentTypes = [...ASSESSMENT_TYPES, ...customAssessmentTypes] // built-in + teacher-added custom types, merged everywhere a type list/lookup is needed
 
   const bySubject = units.reduce((acc, u) => {
     (acc[u.subject] ||= []).push(u)
@@ -420,7 +450,7 @@ export default function UnitsPage() {
             <span style={{ fontSize: 11, color: '#999', fontWeight: 400, marginLeft: 6 }}>(check as many as apply)</span>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', marginBottom: 12 }}>
-            {ASSESSMENT_TYPES.map((t) => (
+            {[...ASSESSMENT_TYPES, ...customAssessmentTypes].map((t) => (
               <label key={t.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
                 <input
                   type="checkbox"
@@ -430,6 +460,27 @@ export default function UnitsPage() {
                 {t.label}
               </label>
             ))}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
+            <input
+              value={newCustomTypeLabel}
+              onChange={(e) => setNewCustomTypeLabel(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addCustomAssessmentType() }}
+              placeholder="Add your own assessment type (e.g. Reading Conference)"
+              style={{ flex: 1, maxWidth: 320, padding: 7, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }}
+            />
+            <button
+              onClick={addCustomAssessmentType}
+              disabled={savingCustomType || !newCustomTypeLabel.trim()}
+              style={{
+                padding: '7px 14px', background: C.navy, color: '#fff', border: 'none', borderRadius: 6,
+                fontSize: 13, fontWeight: 600, cursor: newCustomTypeLabel.trim() ? 'pointer' : 'not-allowed',
+                opacity: newCustomTypeLabel.trim() ? 1 : 0.5,
+              }}
+            >
+              {savingCustomType ? 'Adding…' : '+ Add type'}
+            </button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
@@ -597,7 +648,7 @@ export default function UnitsPage() {
             const exState = examplesState[key]
             const endWeek = endWeekByUnit[`${subject}::${u.unit_name}`]
             const status = !u.removed ? reminderStatus(currentWeek, endWeek) : null
-            const effectiveType = ASSESSMENT_TYPES.find((t) => t.key === (u.assessment_type || defaultAssessmentTypes[0]))
+            const effectiveType = allAssessmentTypes.find((t) => t.key === (u.assessment_type || defaultAssessmentTypes[0]))
 
             // Physical drag-to-reorder visuals: the dragged row follows the
             // pointer directly; siblings between its old and new spot slide
@@ -653,8 +704,8 @@ export default function UnitsPage() {
                     title="Assessment type for this unit (overrides the default above)"
                     style={{ fontSize: 11, padding: '3px 6px', border: `1px solid ${C.border}`, borderRadius: 5, color: u.assessment_type ? '#333' : '#aaa' }}
                   >
-                    <option value="">Default ({defaultAssessmentTypes.map((k) => ASSESSMENT_TYPES.find((t) => t.key === k)?.label).filter(Boolean).join(', ')})</option>
-                    {ASSESSMENT_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                    <option value="">Default ({defaultAssessmentTypes.map((k) => allAssessmentTypes.find((t) => t.key === k)?.label).filter(Boolean).join(', ')})</option>
+                    {allAssessmentTypes.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
                   </select>
                   {splitClassEnabled && (
                     <select
@@ -835,7 +886,6 @@ export default function UnitsPage() {
                       return cats.includes(cat.key)
                     })
                     const colors = LA_CAT_COLORS[cat.key]
-                    const elabOpen = openElaborations[cat.key] !== false // default OPEN -- elaboration ideas are the main focus now
                     const addedUnitsOpen = !!openAddedUnits[cat.key] // default CLOSED -- minimized, expandable
                     const catElaborations = elaborationsForCategory(cat.key)
                     const grade = teacherGrades?.join?.('/') || null
@@ -906,30 +956,21 @@ export default function UnitsPage() {
                     return (
                       <div key={cat.key} style={{ marginBottom: 16, background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, padding: 12 }}>
                         <h3 style={{ fontSize: 13, color: colors.text, fontWeight: 700, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                          {cat.label}
+                          {cat.label} <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.7, textTransform: 'none' }}>— Elaboration ideas ({catElaborations.length})</span>
                         </h3>
 
-                        <button
-                          type="button"
-                          onClick={() => setOpenElaborations((prev) => ({ ...prev, [cat.key]: !(prev[cat.key] !== false) }))}
-                          style={{ background: 'none', border: 'none', color: colors.text, fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0, marginBottom: elabOpen ? 8 : 12, textDecoration: 'underline' }}
-                        >
-                          {elabOpen ? '▾ Hide' : '▸ Show'} Elaboration ideas ({catElaborations.length})
-                        </button>
-
-                        {elabOpen && (
-                          <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {coveredElabs.map((elab) => elabCard(elab, false))}
-                            {gapElabs.length > 0 && (
-                              <>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: '#a33', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: coveredElabs.length > 0 ? 6 : 0 }}>
-                                  Not yet covered ({gapElabs.length})
-                                </div>
-                                {gapElabs.map((elab) => elabCard(elab, true))}
-                              </>
-                            )}
-                          </div>
-                        )}
+                        {/* Always expanded per Aj -- these are the main focus of this section, not something to hide behind a toggle. */}
+                        <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {coveredElabs.map((elab) => elabCard(elab, false))}
+                          {gapElabs.length > 0 && (
+                            <>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: '#a33', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: coveredElabs.length > 0 ? 6 : 0 }}>
+                                Not yet covered ({gapElabs.length})
+                              </div>
+                              {gapElabs.map((elab) => elabCard(elab, true))}
+                            </>
+                          )}
+                        </div>
 
                         <button
                           type="button"
