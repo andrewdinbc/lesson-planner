@@ -48,6 +48,28 @@ export default function YearPlanPage() {
   const [teacherGrades, setTeacherGrades] = useState([])
   const [newSubjectName, setNewSubjectName] = useState('')
   const [addingSubject, setAddingSubject] = useState(false)
+  const [openQA, setOpenQA] = useState(null) // period_label currently expanded
+  const [qaQuestion, setQaQuestion] = useState('')
+  const [qaAnswer, setQaAnswer] = useState('')
+  const [qaLoading, setQaLoading] = useState(false)
+
+  async function askSubjectQA(periodLabel) {
+    if (!qaQuestion.trim()) return
+    setQaLoading(true)
+    setQaAnswer('')
+    try {
+      const res = await fetch('/api/year-plan/subject-qa', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: qaQuestion.trim(), subject: periodLabel, grade: teacherGrades.join('/'), modelKey }),
+      })
+      const data = await res.json()
+      setQaAnswer(data.answer || data.error || 'No answer returned.')
+    } catch (e) {
+      setQaAnswer("Couldn't reach the AI — try again in a moment.")
+    } finally {
+      setQaLoading(false)
+    }
+  }
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [startDate, setStartDate] = useState('')
@@ -362,6 +384,44 @@ export default function YearPlanPage() {
                       Weeks {w.startWeek}–{w.endWeek} ({w.weekCount} weeks)
                     </div>
                   )}
+
+                  <button
+                    onClick={() => {
+                      const isOpen = openQA === p.period_label
+                      setOpenQA(isOpen ? null : p.period_label)
+                      if (!isOpen) { setQaQuestion(''); setQaAnswer('') }
+                    }}
+                    style={{ background: 'none', border: 'none', color: C.navy, fontSize: 11, cursor: 'pointer', padding: '4px 0', textDecoration: 'underline' }}
+                  >
+                    {openQA === p.period_label ? '▾ Hide' : '▸ Ask AI about'} {p.period_label}
+                  </button>
+
+                  {openQA === p.period_label && (
+                    <div style={{ background: '#f7f5f0', border: `1px solid ${C.border}`, borderRadius: 8, padding: 12, marginTop: 4 }}>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input
+                          value={qaQuestion} onChange={(e) => setQaQuestion(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') askSubjectQA(p.period_label) }}
+                          placeholder={`e.g. "What should ${p.period_label} cover this term?"`}
+                          style={{ flex: 1, padding: 8, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }}
+                        />
+                        <button
+                          onClick={() => askSubjectQA(p.period_label)}
+                          disabled={qaLoading || !qaQuestion.trim()}
+                          style={{
+                            padding: '8px 14px', background: C.gold, color: '#fff', border: 'none', borderRadius: 6,
+                            fontSize: 12, fontWeight: 600, cursor: qaQuestion.trim() ? 'pointer' : 'not-allowed',
+                            opacity: qaQuestion.trim() ? 1 : 0.5,
+                          }}
+                        >
+                          {qaLoading ? 'Asking…' : 'Ask'}
+                        </button>
+                      </div>
+                      {qaAnswer && (
+                        <p style={{ fontSize: 13, color: '#333', marginTop: 10, marginBottom: 0, whiteSpace: 'pre-wrap' }}>{qaAnswer}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -398,6 +458,7 @@ export default function YearPlanPage() {
     </div>
   )
 }
+
 
 
 
