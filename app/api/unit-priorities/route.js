@@ -29,6 +29,15 @@ export async function GET() {
 // POST: update one or more unit rows (priority slider changes, removal
 // toggles, high_scrutiny opt-in for non-LA/Math subjects), and optionally
 // run the mismatch check against total instructional weeks.
+//
+// la_category: Language Arts sub-section override (reading/writing/oral) --
+// set when a teacher manually re-buckets a unit away from the heuristic
+// default computed client-side by lib/language-arts-categories.js.
+//
+// saved_for_later: whether the end-of-unit assessment reminder should show
+// as deferred ("saved for later", the default) vs. actionable right now.
+// Defaults to true so the reminder doesn't nag by default -- teachers
+// uncheck it when they actually want to act on a specific unit's reminder.
 export async function POST(request) {
   const user = await getCurrentUser()
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
@@ -43,6 +52,8 @@ export async function POST(request) {
           removed: u.removed,
           sort_order: u.sort_order,
           assessment_type: u.assessment_type,
+          la_category: u.la_category ?? null,
+          saved_for_later: u.saved_for_later ?? true,
           updated_at: new Date().toISOString(),
         })
       }
@@ -60,4 +71,3 @@ export async function POST(request) {
     return Response.json({ error: e.message }, { status: 500 })
   }
 }
-
