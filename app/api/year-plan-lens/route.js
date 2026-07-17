@@ -90,7 +90,10 @@ export async function PUT(request) {
 
 // POST: update period % allocations after a slider change. Client sends
 // the full period set for a model_key (already re-normalized client-side
-// or not - we normalize server-side regardless to guarantee sum=100),
+// or not - we normalize server-side regardless to guarantee sum=100,
+// UNLESS one or more periods are flagged interdisciplinary, in which case
+// the total is allowed above 100% up to a 135% ceiling instead of being
+// forced back down -- see lib/year-plan.js#normalizePeriods),
 // plus optional totalInstructionalWeeksAvailable to return fresh windows.
 export async function POST(request) {
   const user = await getCurrentUser()
@@ -108,7 +111,7 @@ export async function POST(request) {
       await sbUpdate(
         'year_plan_lens_prefs',
         `?user_id=eq.${user.id}&model_key=eq.${encodeURIComponent(model_key)}&period_label=eq.${encodeURIComponent(p.period_label)}`,
-        { period_pct: p.period_pct, updated_at: new Date().toISOString() }
+        { period_pct: p.period_pct, interdisciplinary: !!p.interdisciplinary, updated_at: new Date().toISOString() }
       )
     }
 
