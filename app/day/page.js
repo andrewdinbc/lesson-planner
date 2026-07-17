@@ -21,6 +21,8 @@ export default function DayPlanPage() {
   const [aiTopic, setAiTopic] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [aiSuggestion, setAiSuggestion] = useState(null) // { title, content } pending Apply/Discard
+  const [gameLoading, setGameLoading] = useState(false)
+  const [gameResult, setGameResult] = useState(null) // { playUrl, gameType } | { error }
 
   // Live Board is meant to stay open on a desk during the school day --
   // re-check the clock every 30s so the "current activity" highlight
@@ -102,6 +104,26 @@ export default function DayPlanPage() {
     setAiPanelBlockId(aiPanelBlockId === id ? null : id)
     setAiTopic('')
     setAiSuggestion(null)
+    setGameResult(null)
+  }
+
+  async function generateGame(block, gameType) {
+    setGameLoading(true)
+    setGameResult(null)
+    try {
+      const res = await fetch('/api/mini-games', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameType, subject: block.subject, topic: aiTopic, grade: '' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed')
+      const playUrl = `${window.location.origin}/play/${data.game.id}`
+      setGameResult({ playUrl, gameType })
+    } catch (e) {
+      setGameResult({ error: e.message })
+    } finally {
+      setGameLoading(false)
+    }
   }
 
   async function runAiAction(block, action) {
@@ -201,7 +223,7 @@ export default function DayPlanPage() {
 
                 {panelOpen && (
                   <div style={{ border: `1px solid ${C.gold}`, borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 14, marginBottom: 8, background: '#fffdf7' }}>
-                    {!aiSuggestion && !aiLoading && (
+                    {!aiSuggestion && !aiLoading && !gameResult && !gameLoading && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
                         <button onClick={() => runAiAction(b, 'skip')} style={aiActionBtnStyle}>⏭️ Skip this lesson</button>
                         <button onClick={() => runAiAction(b, 'engage')} style={aiActionBtnStyle}>⚡ Not landing — re-engage them</button>
@@ -216,10 +238,36 @@ export default function DayPlanPage() {
                             Generate
                           </button>
                         </div>
+                        <div style={{ width: '100%', borderTop: `1px solid ${C.border}`, marginTop: 4, paddingTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <span style={{ fontSize: 11, color: '#888' }}>Or make it a game (QR code, students play on their own devices):</span>
+                          <button onClick={() => generateGame(b, 'quiz')} style={aiActionBtnStyle}>🎮 Quiz Game</button>
+                          <button onClick={() => generateGame(b, 'wordle')} style={aiActionBtnStyle}>🔤 Word Guess</button>
+                        </div>
                         <button onClick={() => setAiPanelBlockId(null)} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 12, marginLeft: 'auto' }}>Close</button>
                       </div>
                     )}
                     {aiLoading && <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Generating…</p>}
+                    {gameLoading && <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Building your game…</p>}
+                    {gameResult && !gameResult.error && (
+                      <div style={{ textAlign: 'center' }}>
+                        <p style={{ fontSize: 13, color: '#333', margin: '0 0 10px' }}>Project this QR code — students scan it and play on their own device.</p>
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(gameResult.playUrl)}`}
+                          alt="Scan to play" style={{ borderRadius: 8, border: `1px solid ${C.border}` }}
+                        />
+                        <p style={{ fontSize: 11, color: '#888', marginTop: 8, wordBreak: 'break-all' }}>{gameResult.playUrl}</p>
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 8 }}>
+                          <button onClick={() => { setGameResult(null); setAiTopic('') }} style={aiActionBtnStyle}>Close</button>
+                          <button onClick={() => setAiPanelBlockId(null)} style={{ ...aiActionBtnStyle, background: C.green, color: '#fff', borderColor: C.green }}>Done — back to board</button>
+                        </div>
+                      </div>
+                    )}
+                    {gameResult?.error && (
+                      <div>
+                        <p style={{ fontSize: 13, color: '#a33' }}>Couldn't build the game — {gameResult.error}</p>
+                        <button onClick={() => setGameResult(null)} style={aiActionBtnStyle}>Try again</button>
+                      </div>
+                    )}
                     {aiSuggestion && (
                       <div>
                         {aiSuggestion.title && <div style={{ fontWeight: 700, color: C.navy, fontSize: 14 }}>{aiSuggestion.title}</div>}
