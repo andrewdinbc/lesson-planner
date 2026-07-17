@@ -4,7 +4,22 @@ import { useState, useEffect } from 'react'
 import { COLORS as C, FONT_BODY } from '@/lib/theme'
 import { reorderWithinSubject } from '@/lib/unit-priorities'
 import { ASSESSMENT_TYPES, currentInstructionalWeek, reminderStatus } from '@/lib/assessment-types'
+import { LA_CATEGORIES, categorizeLA } from '@/lib/language-arts-categories'
 const ALWAYS_HIGH_SCRUTINY = ['Language Arts', 'Mathematics']
+// Subjects appear in this order first (Language Arts, then Math), per Aj's
+// instruction that Language Arts should be discussed first, then Math.
+// Anything not listed here keeps whatever order it came in after these two.
+const SUBJECT_DISCUSSION_ORDER = ['Language Arts', 'Mathematics']
+function sortSubjectEntries(entries) {
+  return [...entries].sort(([a], [b]) => {
+    const ai = SUBJECT_DISCUSSION_ORDER.indexOf(a)
+    const bi = SUBJECT_DISCUSSION_ORDER.indexOf(b)
+    if (ai === -1 && bi === -1) return 0
+    if (ai === -1) return 1
+    if (bi === -1) return -1
+    return ai - bi
+  })
+}
 
 export default function UnitsPage() {
   const [units, setUnits] = useState([])
@@ -31,6 +46,9 @@ export default function UnitsPage() {
   const [defaultTypesDirty, setDefaultTypesDirty] = useState(false)
   const [currentWeek, setCurrentWeek] = useState(null)
   const [endWeekByUnit, setEndWeekByUnit] = useState({}) // `${subject}::${unit_name}` -> end_week, from the Timeline
+  const [collapsedSubjects, setCollapsedSubjects] = useState({}) // subject -> bool, minimize/expand so the page isn't so long
+  const [examplesState, setExamplesState] = useState({}) // `${key}` -> { loading, examples, error }
+  const [doItNow, setDoItNow] = useState({}) // `${key}` -> bool, overrides the default "saved for later" state for one unit's reminder
 
   function toggleDefaultAssessmentType(key) {
     setPendingAssessmentTypes((prev) => {
@@ -162,6 +180,25 @@ export default function UnitsPage() {
 
   function updateUnit(subject, unit_name, field, value) {
     setUnits((prev) => prev.map((u) => (u.subject === subject && u.unit_name === unit_name ? { ...u, [field]: value } : u)))
+  }
+
+  function toggleSubjectCollapsed(subject) {
+    setCollapsedSubjects((prev) => ({ ...prev, [subject]: !prev[subject] }))
+  }
+
+  async function fetchExamples(key, { subject, unitName, contentSummary, assessmentTypeLabel, grade }) {
+    setExamplesState((prev) => ({ ...prev, [key]: { loading: true, examples: null, error: null } }))
+    try {
+      const res = await fetch('/api/units/examples', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject, unitName, contentSummary, assessmentTypeLabel, grade }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not generate examples')
+      setExamplesState((prev) => ({ ...prev, [key]: { loading: false, examples: data.examples || [], error: null } }))
+    } catch (e) {
+      setExamplesState((prev) => ({ ...prev, [key]: { loading: false, examples: null, error: e.message } }))
+    }
   }
 
   async function save() {
@@ -330,13 +367,174 @@ export default function UnitsPage() {
           </div>
         )}
 
-        {Object.entries(bySubject).map(([subject, subjectUnits]) => {
+        {sortSubjectEntries(Object.entries(bySubject)).map(([subject, subjectUnits]) => {
           const isHighScrutiny = ALWAYS_HIGH_SCRUTINY.includes(subject) || subjectUnits.some((u) => u.high_scrutiny)
+          const isCollapsed = !!collapsedSubjects[subject]
+          const isLanguageArts = subject === 'Language Arts'
+
+          // Renders one unit row -- shared by the flat list (most subjects)
+          // and the three Language Arts sub-sections (Reading/Writing/Oral).
+          const renderUnitRow = (u) => {
+            const idx = subjectUnits.indexOf(u) // global index within this subject, for drag reordering
+            const key = `${subject}::${u.unit_name}`
+            const isExpanded = expandedCompetency[key]
+            const isDragging = dragInfo?.subject === subject && dragInfo?.fromIndex === idx
+            const savedForLater = u.saved_for_later !== false && !doItNow[key] // defaults to true
+            const exState = examplesState[key]
+            const endWeek = endWeekByUnit[`${subject}::${u.unit_name}`]
+            const status = !u.removed ? reminderStatus(currentWeek, endWeek) : null
+            const effectiveType = ASSESSMENT_TYPES.find((t) => t.key === (u.assessment_type || defaultAssessmentTypes[0]))
+
+            return (
+              <div
+                key={u.unit_name}
+                draggable
+                onDragStart={() => setDragInfo({ subject, fromIndex: idx })}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.preventDefault(); handleDrop(subject, idx) }}
+                style={{
+                  marginBottom: 12, opacity: u.removed ? 0.4 : isDragging ? 0.3 : 1,
+                  borderBottom: `1px solid ${C.border}`, paddingBottom: 10,
+                  background: isDragging ? '#f2f0ea' : 'transparent',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span
+                    title="Drag to reorder teaching sequence"
+                    style={{ cursor: 'grab', color: '#bbb', fontSize: 14, userSelect: 'none' }}
+                  >
+                    ⠠
+                  </span>
+                  <input type="checkbox" checked={!u.removed} onChange={(e) => updateUnit(subject, u.unit_name, 'removed', !e.target.checked)} />
+                  <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>
+                    {u.unit_name}
+                    {u.grades?.length > 0 && <span style={{ fontSize: 11, color: '#999', marginLeft: 6, fontWeight: 400 }}>(Gr. {u.grades.join('/')})</span>}
+                  </span>
+                  <input
+                    type="range" min="0.25" max="3" step="0.25" value={u.priority} disabled={u.removed}
+                    onChange={(e) => updateUnit(subject, u.unit_name, 'priority', Number(e.target.value))}
+                    style={{ width: 140 }}
+                  />
+                  <span style={{ fontSize: 12, color: '#888', width: 32 }}>{u.priority}×</span>
+                  <select
+                    value={u.assessment_type || ''}
+                    onChange={(e) => updateUnit(subject, u.unit_name, 'assessment_type', e.target.value || null)}
+                    title="Assessment type for this unit (overrides the default above)"
+                    style={{ fontSize: 11, padding: '3px 6px', border: `1px solid ${C.border}`, borderRadius: 5, color: u.assessment_type ? '#333' : '#aaa' }}
+                  >
+                    <option value="">Default ({defaultAssessmentTypes.map((k) => ASSESSMENT_TYPES.find((t) => t.key === k)?.label).filter(Boolean).join(', ')})</option>
+                    {ASSESSMENT_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                  </select>
+                </div>
+
+                {status && (
+                  <div style={{
+                    marginTop: 8, marginLeft: 30, padding: '8px 12px', borderRadius: 6, fontSize: 12,
+                    background: status === 'due' ? '#fdecea' : '#fdf3e3',
+                    color: status === 'due' ? '#a33' : '#7a5a1e',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <span>
+                        {status === 'due'
+                          ? `This unit has wrapped — the ${effectiveType?.label.toLowerCase()} is `
+                          : `This unit ends soon (week ${endWeek}) — the ${effectiveType?.label.toLowerCase()} is `}
+                        <strong>{savedForLater ? 'saved for later' : 'ready to work on now'}</strong>.
+                      </span>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={savedForLater}
+                          onChange={(e) => {
+                            const checked = e.target.checked
+                            updateUnit(subject, u.unit_name, 'saved_for_later', checked)
+                            setDoItNow((prev) => ({ ...prev, [key]: !checked }))
+                          }}
+                        />
+                        Save for later
+                      </label>
+                      {!savedForLater && (
+                        <button
+                          onClick={() => fetchExamples(key, {
+                            subject, unitName: u.unit_name, contentSummary: u.content_summary,
+                            assessmentTypeLabel: effectiveType?.label, grade: u.grades?.join('/'),
+                          })}
+                          disabled={exState?.loading}
+                          style={{
+                            padding: '5px 12px', background: C.gold, color: '#fff', border: 'none', borderRadius: 6,
+                            fontSize: 12, fontWeight: 700, cursor: exState?.loading ? 'default' : 'pointer',
+                          }}
+                        >
+                          {exState?.loading ? 'Generating…' : '✨ Show me examples'}
+                        </button>
+                      )}
+                    </div>
+                    {!savedForLater && exState?.error && (
+                      <p style={{ marginTop: 8, marginBottom: 0, color: '#a33' }}>{exState.error}</p>
+                    )}
+                    {!savedForLater && exState?.examples?.length > 0 && (
+                      <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 18 }}>
+                        {exState.examples.map((ex, i) => <li key={i} style={{ marginBottom: 4 }}>{ex}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                {/* Content is the primary focus, per Aj's instruction -- shown
+                    directly, not hidden behind hover or a toggle. Curricular
+                    Competency stays collapsed by default underneath it. */}
+                {u.content_summary && (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 6, marginLeft: 30 }}>
+                    <p style={{ fontSize: 12, color: '#555', margin: 0, whiteSpace: 'pre-wrap', flex: 1 }}>
+                      {u.content_summary}
+                    </p>
+                    <button
+                      onClick={() => fetchExamples(`${key}::content`, {
+                        subject, unitName: u.unit_name, contentSummary: u.content_summary, grade: u.grades?.join('/'),
+                      })}
+                      disabled={examplesState[`${key}::content`]?.loading}
+                      title="AI-generated examples for this unit's content"
+                      style={{ background: 'none', border: 'none', color: C.navy, fontSize: 11, cursor: 'pointer', padding: 0, whiteSpace: 'nowrap', textDecoration: 'underline' }}
+                    >
+                      {examplesState[`${key}::content`]?.loading ? 'Generating…' : '✨ Show me examples'}
+                    </button>
+                  </div>
+                )}
+                {examplesState[`${key}::content`]?.examples?.length > 0 && (
+                  <ul style={{ marginLeft: 30, marginTop: 4, marginBottom: 0, paddingLeft: 18, fontSize: 12, color: '#555' }}>
+                    {examplesState[`${key}::content`].examples.map((ex, i) => <li key={i} style={{ marginBottom: 4 }}>{ex}</li>)}
+                  </ul>
+                )}
+
+                {u.curricular_competency && (
+                  <div style={{ marginLeft: 30, marginTop: 6 }}>
+                    <button
+                      onClick={() => setExpandedCompetency((prev) => ({ ...prev, [key]: !prev[key] }))}
+                      style={{ background: 'none', border: 'none', color: C.navy, fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                    >
+                      {isExpanded ? '▾ Hide' : '▸ Show'} Curricular Competency
+                    </button>
+                    {isExpanded && (
+                      <p style={{ fontSize: 12, color: '#666', marginTop: 4, whiteSpace: 'pre-wrap' }}>{u.curricular_competency}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          }
+
           return (
             <div key={subject} style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 18, marginBottom: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <h2 style={{ color: C.navy, fontSize: 16, margin: 0 }}>{subject}</h2>
-                {!ALWAYS_HIGH_SCRUTINY.includes(subject) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isCollapsed ? 0 : 10 }}>
+                <button
+                  onClick={() => toggleSubjectCollapsed(subject)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                  title={isCollapsed ? 'Expand this subject' : 'Minimize this subject'}
+                >
+                  <span style={{ display: 'inline-block', transform: isCollapsed ? 'none' : 'rotate(90deg)', transition: 'transform 0.15s', color: '#888', fontSize: 14 }}>▸</span>
+                  <h2 style={{ color: C.navy, fontSize: 16, margin: 0 }}>{subject}</h2>
+                  <span style={{ fontSize: 12, color: '#999', fontWeight: 400 }}>({subjectUnits.length})</span>
+                </button>
+                {!isCollapsed && !ALWAYS_HIGH_SCRUTINY.includes(subject) && (
                   <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, color: '#888' }}>
                     <input
                       type="checkbox"
@@ -347,104 +545,25 @@ export default function UnitsPage() {
                   </label>
                 )}
               </div>
-              {subjectUnits.map((u, idx) => {
-                const key = `${subject}::${u.unit_name}`
-                const isExpanded = expandedCompetency[key]
-                const isDragging = dragInfo?.subject === subject && dragInfo?.fromIndex === idx
-                return (
-                  <div
-                    key={u.unit_name}
-                    draggable
-                    onDragStart={() => setDragInfo({ subject, fromIndex: idx })}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => { e.preventDefault(); handleDrop(subject, idx) }}
-                    style={{
-                      marginBottom: 12, opacity: u.removed ? 0.4 : isDragging ? 0.3 : 1,
-                      borderBottom: `1px solid ${C.border}`, paddingBottom: 10,
-                      background: isDragging ? '#f2f0ea' : 'transparent',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <span
-                        title="Drag to reorder teaching sequence"
-                        style={{ cursor: 'grab', color: '#bbb', fontSize: 14, userSelect: 'none' }}
-                      >
-                        ⠿
-                      </span>
-                      <input type="checkbox" checked={!u.removed} onChange={(e) => updateUnit(subject, u.unit_name, 'removed', !e.target.checked)} />
-                      <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>
-                        {u.unit_name}
-                        {u.grades?.length > 0 && <span style={{ fontSize: 11, color: '#999', marginLeft: 6, fontWeight: 400 }}>(Gr. {u.grades.join('/')})</span>}
-                      </span>
-                      <input
-                        type="range" min="0.25" max="3" step="0.25" value={u.priority} disabled={u.removed}
-                        onChange={(e) => updateUnit(subject, u.unit_name, 'priority', Number(e.target.value))}
-                        style={{ width: 140 }}
-                      />
-                      <span style={{ fontSize: 12, color: '#888', width: 32 }}>{u.priority}×</span>
-                      <select
-                        value={u.assessment_type || ''}
-                        onChange={(e) => updateUnit(subject, u.unit_name, 'assessment_type', e.target.value || null)}
-                        title="Assessment type for this unit (overrides the default above)"
-                        style={{ fontSize: 11, padding: '3px 6px', border: `1px solid ${C.border}`, borderRadius: 5, color: u.assessment_type ? '#333' : '#aaa' }}
-                      >
-                        <option value="">Default ({defaultAssessmentTypes.map((k) => ASSESSMENT_TYPES.find((t) => t.key === k)?.label).filter(Boolean).join(', ')})</option>
-                        {ASSESSMENT_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-                      </select>
-                    </div>
 
-                    {(() => {
-                      const endWeek = endWeekByUnit[`${subject}::${u.unit_name}`]
-                      const status = !u.removed ? reminderStatus(currentWeek, endWeek) : null
-                      if (!status) return null
-                      const effectiveType = ASSESSMENT_TYPES.find((t) => t.key === (u.assessment_type || defaultAssessmentTypes[0]))
-                      return (
-                        <div style={{
-                          marginTop: 8, marginLeft: 30, padding: '8px 12px', borderRadius: 6, fontSize: 12,
-                          background: status === 'due' ? '#fdecea' : '#fdf3e3',
-                          color: status === 'due' ? '#a33' : '#7a5a1e',
-                          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-                        }}>
-                          <span>
-                            {status === 'due'
-                              ? `This unit has wrapped — have you built the ${effectiveType?.label.toLowerCase()}?`
-                              : `This unit ends soon (week ${endWeek}) — time to line up the ${effectiveType?.label.toLowerCase()}.`}
-                          </span>
-                          <a href={effectiveType?.guidedLink || '/assessment-tool'} style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>
-                            {effectiveType?.guidedLabel || 'Build it now'}
-                          </a>
-                          <a href="https://optimizeyourfreedom.com" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>
-                            Or have it AI-generated →
-                          </a>
-                        </div>
-                      )
-                    })()}
-
-                    {/* Content is the primary focus, per Aj's instruction -- shown
-                        directly, not hidden behind hover or a toggle. Curricular
-                        Competency stays collapsed by default underneath it. */}
-                    {u.content_summary && (
-                      <p style={{ fontSize: 12, color: '#555', marginTop: 6, marginLeft: 30, marginBottom: 0, whiteSpace: 'pre-wrap' }}>
-                        {u.content_summary}
-                      </p>
-                    )}
-
-                    {u.curricular_competency && (
-                      <div style={{ marginLeft: 30, marginTop: 6 }}>
-                        <button
-                          onClick={() => setExpandedCompetency((prev) => ({ ...prev, [key]: !prev[key] }))}
-                          style={{ background: 'none', border: 'none', color: C.navy, fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
-                        >
-                          {isExpanded ? '▾ Hide' : '▸ Show'} Curricular Competency
-                        </button>
-                        {isExpanded && (
-                          <p style={{ fontSize: 12, color: '#666', marginTop: 4, whiteSpace: 'pre-wrap' }}>{u.curricular_competency}</p>
-                        )}
+              {!isCollapsed && (
+                isLanguageArts ? (
+                  LA_CATEGORIES.map((cat) => {
+                    const catUnits = subjectUnits.filter((u) => (u.la_category || categorizeLA(u.unit_name, u.content_summary)) === cat.key)
+                    if (!catUnits.length) return null
+                    return (
+                      <div key={cat.key} style={{ marginBottom: 16 }}>
+                        <h3 style={{ fontSize: 13, color: C.navy, fontWeight: 700, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                          {cat.label} <span style={{ fontSize: 11, color: '#999', fontWeight: 400, textTransform: 'none' }}>({catUnits.length})</span>
+                        </h3>
+                        {catUnits.map(renderUnitRow)}
                       </div>
-                    )}
-                  </div>
+                    )
+                  })
+                ) : (
+                  subjectUnits.map(renderUnitRow)
                 )
-              })}
+              )}
             </div>
           )
         })}
