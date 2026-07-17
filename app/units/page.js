@@ -60,8 +60,12 @@ export default function UnitsPage() {
   const [currentWeek, setCurrentWeek] = useState(null)
   const [endWeekByUnit, setEndWeekByUnit] = useState({}) // `${subject}::${unit_name}` -> end_week, from the Timeline
   const [collapsedSubjects, setCollapsedSubjects] = useState({ Mathematics: true, 'Social Studies': true }) // subject -> bool, minimize/expand so the page isn't so long -- Math and Social Studies start minimized per Aj
-  const [openElaborations, setOpenElaborations] = useState({}) // LA category key -> bool
+  const [openElaborations, setOpenElaborations] = useState({}) // LA category key -> bool, default OPEN (elaboration ideas are the main focus)
   const [addingElabKey, setAddingElabKey] = useState(null)
+  const [aiBuildingKey, setAiBuildingKey] = useState(null) // elab.key currently running "AI build me this unit"
+  const [creativeBuildingKey, setCreativeBuildingKey] = useState(null) // elab.key currently running "AI: creative way to cover this"
+  const [openAddedUnits, setOpenAddedUnits] = useState({}) // LA category key -> bool, default CLOSED (units minimized, elaborations are the focus)
+  const [openCoverage, setOpenCoverage] = useState({}) // unit key -> bool, "What does this cover?" toggle
   const [splitClassEnabled, setSplitClassEnabled] = useState(false) // A/B year rotation -- half the content is covered each year
   const [activeRotationYear, setActiveRotationYear] = useState('A')
   const [savingSplitClass, setSavingSplitClass] = useState(false)
@@ -259,19 +263,77 @@ export default function UnitsPage() {
     setCollapsedSubjects((prev) => ({ ...prev, [subject]: !prev[subject] }))
   }
 
-  // Quick-adds a unit from a Language Arts Elaboration idea, pre-tagged
-  // with the strands that idea covers (e.g. Novel Study -> reading+writing+oral).
+  // "+ Add as a Unit Frame" -- inserts an intentionally EMPTY placeholder
+  // unit pre-tagged with the strands the elaboration covers. No content is
+  // generated; the teacher fills it in later themselves.
   async function addUnitFromElaboration(subject, elab) {
     setAddingElabKey(elab.key)
     try {
       const res = await fetch('/api/unit-priorities', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ addUnit: { subject, unit_name: elab.label, la_categories: elab.covers } }),
+        body: JSON.stringify({ addUnit: { subject, unit_name: elab.label, la_categories: elab.covers, source_elaboration_key: elab.key } }),
       })
       const data = await res.json()
       if (res.ok) setUnits(data.units || units)
     } finally {
       setAddingElabKey(null)
+    }
+  }
+
+  // "AI build me this unit" -- generates real content for the elaboration
+  // idea and inserts it as a fully-fleshed-out unit (not an empty frame).
+  async function aiBuildUnit(subject, elab, grade) {
+    setAiBuildingKey(elab.key)
+    try {
+      const genRes = await fetch('/api/units/ai-build', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject, unitLabel: elab.label, covers: elab.covers, grade }),
+      })
+      const gen = await genRes.json()
+      if (!genRes.ok) throw new Error(gen.error)
+      const res = await fetch('/api/unit-priorities', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          addUnit: {
+            subject, unit_name: gen.unit_name || elab.label, la_categories: elab.covers,
+            content_summary: gen.content_summary, curricular_competency: gen.curricular_competency,
+            source_elaboration_key: elab.key,
+          },
+        }),
+      })
+      const data = await res.json()
+      if (res.ok) setUnits(data.units || units)
+    } catch { /* transient AI/network failure -- teacher can retry */ } finally {
+      setAiBuildingKey(null)
+    }
+  }
+
+  // "AI: creative way to cover this" -- for an elaboration idea that has NO
+  // unit yet (a coverage gap), invents a fresh, non-obvious approach that
+  // still hits the same strands, and inserts it as a new unit.
+  async function aiCoverGapCreatively(subject, elab, grade) {
+    setCreativeBuildingKey(elab.key)
+    try {
+      const genRes = await fetch('/api/units/ai-build', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject, unitLabel: elab.label, covers: elab.covers, grade, creative: true }),
+      })
+      const gen = await genRes.json()
+      if (!genRes.ok) throw new Error(gen.error)
+      const res = await fetch('/api/unit-priorities', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          addUnit: {
+            subject, unit_name: gen.unit_name || elab.label, la_categories: elab.covers,
+            content_summary: gen.content_summary, curricular_competency: gen.curricular_competency,
+            source_elaboration_key: elab.key,
+          },
+        }),
+      })
+      const data = await res.json()
+      if (res.ok) setUnits(data.units || units)
+    } catch { /* transient AI/network failure -- teacher can retry */ } finally {
+      setCreativeBuildingKey(null)
     }
   }
 
@@ -773,17 +835,83 @@ export default function UnitsPage() {
                       return cats.includes(cat.key)
                     })
                     const colors = LA_CAT_COLORS[cat.key]
-                    const elabOpen = openElaborations[cat.key]
+                    const elabOpen = openElaborations[cat.key] !== false // default OPEN -- elaboration ideas are the main focus now
+                    const addedUnitsOpen = !!openAddedUnits[cat.key] // default CLOSED -- minimized, expandable
                     const catElaborations = elaborationsForCategory(cat.key)
+                    const grade = teacherGrades?.join?.('/') || null
+
+                    const isElabCovered = (elab) => catUnits.some((u) => u.source_elaboration_key === elab.key || u.unit_name.toLowerCase() === elab.label.toLowerCase())
+                    const coveredElabs = catElaborations.filter(isElabCovered)
+                    const gapElabs = catElaborations.filter((e) => !isElabCovered(e))
+
+                    const elabCard = (elab, isGap) => {
+                      const coverageOpen = openCoverage[`elab::${elab.key}`]
+                      return (
+                        <div key={elab.key} style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 6, padding: '8px 10px' }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: C.navy }}>{elab.label}</div>
+                              <button
+                                type="button"
+                                onClick={() => setOpenCoverage((prev) => ({ ...prev, [`elab::${elab.key}`]: !prev[`elab::${elab.key}`] }))}
+                                style={{ background: 'none', border: 'none', color: colors.text, fontSize: 10, fontWeight: 600, cursor: 'pointer', padding: 0, marginTop: 3, textDecoration: 'underline' }}
+                              >
+                                👁 {coverageOpen ? 'Hide' : 'What does this cover?'}
+                              </button>
+                              {coverageOpen && (
+                                <div style={{ marginTop: 4 }}>
+                                  <div style={{ fontSize: 10, color: '#999' }}>
+                                    Covers: {elab.covers.map((c) => LA_CATEGORIES.find((x) => x.key === c)?.label).join(', ')}
+                                  </div>
+                                  <p style={{ fontSize: 11, color: '#666', margin: '3px 0 0' }}>{elab.description}</p>
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'stretch' }}>
+                              {isGap ? (
+                                <button
+                                  onClick={() => aiCoverGapCreatively(subject, elab, grade)}
+                                  disabled={creativeBuildingKey === elab.key}
+                                  title="Not yet covered -- have AI invent a creative, non-obvious way to cover it"
+                                  style={{ padding: '4px 10px', background: '#7a3c8a', color: '#fff', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                >
+                                  {creativeBuildingKey === elab.key ? 'Inventing…' : '✨ AI: creative way to cover this'}
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => addUnitFromElaboration(subject, elab)}
+                                    disabled={addingElabKey === elab.key}
+                                    title="Insert an empty placeholder unit -- fill in the details yourself later"
+                                    style={{ padding: '4px 10px', background: colors.text, color: '#fff', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                  >
+                                    {addingElabKey === elab.key ? 'Adding…' : '+ Add as a Unit Frame (empty, add info later)'}
+                                  </button>
+                                  <button
+                                    onClick={() => aiBuildUnit(subject, elab, grade)}
+                                    disabled={aiBuildingKey === elab.key}
+                                    title="Have AI generate real content and competency for this unit right now"
+                                    style={{ padding: '4px 10px', background: C.gold, color: '#fff', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                  >
+                                    {aiBuildingKey === elab.key ? 'Building…' : '✨ AI build me this unit'}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    }
+
                     return (
                       <div key={cat.key} style={{ marginBottom: 16, background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, padding: 12 }}>
                         <h3 style={{ fontSize: 13, color: colors.text, fontWeight: 700, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                          {cat.label} <span style={{ fontSize: 11, color: colors.text, opacity: 0.7, fontWeight: 400, textTransform: 'none' }}>({catUnits.length})</span>
+                          {cat.label}
                         </h3>
 
                         <button
                           type="button"
-                          onClick={() => setOpenElaborations((prev) => ({ ...prev, [cat.key]: !prev[cat.key] }))}
+                          onClick={() => setOpenElaborations((prev) => ({ ...prev, [cat.key]: !(prev[cat.key] !== false) }))}
                           style={{ background: 'none', border: 'none', color: colors.text, fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0, marginBottom: elabOpen ? 8 : 12, textDecoration: 'underline' }}
                         >
                           {elabOpen ? '▾ Hide' : '▸ Show'} Elaboration ideas ({catElaborations.length})
@@ -791,31 +919,32 @@ export default function UnitsPage() {
 
                         {elabOpen && (
                           <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {catElaborations.map((elab) => (
-                              <div key={elab.key} style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 6, padding: '8px 10px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: 12, fontWeight: 700, color: C.navy }}>
-                                    {elab.label}
-                                    <span style={{ fontSize: 10, fontWeight: 400, color: '#999', marginLeft: 6 }}>
-                                      covers: {elab.covers.map((c) => LA_CATEGORIES.find((x) => x.key === c)?.label).join(', ')}
-                                    </span>
-                                  </div>
-                                  <p style={{ fontSize: 11, color: '#666', margin: '3px 0 0' }}>{elab.description}</p>
+                            {coveredElabs.map((elab) => elabCard(elab, false))}
+                            {gapElabs.length > 0 && (
+                              <>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: '#a33', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: coveredElabs.length > 0 ? 6 : 0 }}>
+                                  Not yet covered ({gapElabs.length})
                                 </div>
-                                <button
-                                  onClick={() => addUnitFromElaboration(subject, elab)}
-                                  disabled={addingElabKey === elab.key}
-                                  style={{ padding: '4px 10px', background: colors.text, color: '#fff', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                                >
-                                  {addingElabKey === elab.key ? 'Adding…' : '+ Add as unit'}
-                                </button>
-                              </div>
-                            ))}
+                                {gapElabs.map((elab) => elabCard(elab, true))}
+                              </>
+                            )}
                           </div>
                         )}
 
-                        {catUnits.length > 0 ? catUnits.map(renderUnitRow) : (
-                          <p style={{ fontSize: 12, color: colors.text, opacity: 0.6, margin: 0 }}>No units here yet -- add one above or from the Elaboration ideas.</p>
+                        <button
+                          type="button"
+                          onClick={() => setOpenAddedUnits((prev) => ({ ...prev, [cat.key]: !prev[cat.key] }))}
+                          style={{ background: 'none', border: 'none', color: colors.text, fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0, marginTop: 4, textDecoration: 'underline' }}
+                        >
+                          {addedUnitsOpen ? '▾ Hide' : '▸ Show'} units already added ({catUnits.length})
+                        </button>
+
+                        {addedUnitsOpen && (
+                          <div style={{ marginTop: 10 }}>
+                            {catUnits.length > 0 ? catUnits.map(renderUnitRow) : (
+                              <p style={{ fontSize: 12, color: colors.text, opacity: 0.6, margin: 0 }}>No units here yet -- add one from the Elaboration ideas above.</p>
+                            )}
+                          </div>
                         )}
                       </div>
                     )
