@@ -42,6 +42,7 @@ export default function PlayGamePage({ params }) {
       {game.game_type === 'muncher' && <MuncherGame game={game} />}
       {game.game_type === 'fact_dash' && <FactDashGame game={game} />}
       {game.game_type === 'tycoon' && <TycoonGame game={game} />}
+      {game.game_type === 'merge' && <MergeGame game={game} />}
       {game.game_type === 'wordle' && <WordleGame game={game} />}
     </Shell>
   )
@@ -647,3 +648,195 @@ function TycoonGame({ game }) {
     </div>
   )
 }
+
+// ── Merge: literal 2048-style board ─────────────────────────────────
+// Standard 2048 slide-and-merge mechanics (swipe or arrow keys), full
+// game-over detection. Curriculum questions interrupt every few moves as
+// a BONUS trigger (correct answer = a free high-value tile dropped onto
+// the board) rather than gating every single swipe -- gating every move
+// would break the flow that makes this genre satisfying in the first
+// place, so content is layered on top of a genuinely intact merge game
+// instead of replacing its core loop.
+const GRID = 4
+const QUESTION_EVERY_N_MOVES = 3
+
+function emptyBoard() {
+  return Array.from({ length: GRID }, () => Array(GRID).fill(0))
+}
+function randomEmptyCell(board) {
+  const empties = []
+  for (let r = 0; r < GRID; r++) for (let c = 0; c < GRID; c++) if (board[r][c] === 0) empties.push([r, c])
+  if (!empties.length) return null
+  return empties[Math.floor(Math.random() * empties.length)]
+}
+function spawnTile(board, forcedValue) {
+  const cell = randomEmptyCell(board)
+  if (!cell) return board
+  const next = board.map((row) => [...row])
+  next[cell[0]][cell[1]] = forcedValue || (Math.random() < 0.9 ? 2 : 4)
+  return next
+}
+function slideRowLeft(row) {
+  const nums = row.filter((n) => n !== 0)
+  let scoreGained = 0
+  for (let i = 0; i < nums.length - 1; i++) {
+    if (nums[i] === nums[i + 1]) { nums[i] *= 2; scoreGained += nums[i]; nums.splice(i + 1, 1) }
+  }
+  while (nums.length < GRID) nums.push(0)
+  return { row: nums, scoreGained }
+}
+function transpose(board) {
+  return board[0].map((_, c) => board.map((row) => row[c]))
+}
+function moveBoard(board, direction) {
+  let working = board.map((row) => [...row])
+  let totalScore = 0
+  if (direction === 'up' || direction === 'down') working = transpose(working)
+  working = working.map((row) => {
+    const r = direction === 'right' || direction === 'down' ? [...row].reverse() : row
+    const { row: slid, scoreGained } = slideRowLeft(r)
+    totalScore += scoreGained
+    return direction === 'right' || direction === 'down' ? slid.reverse() : slid
+  })
+  if (direction === 'up' || direction === 'down') working = transpose(working)
+  const changed = JSON.stringify(working) !== JSON.stringify(board)
+  return { board: working, scoreGained: totalScore, changed }
+}
+function hasMovesLeft(board) {
+  for (let r = 0; r < GRID; r++) for (let c = 0; c < GRID; c++) {
+    if (board[r][c] === 0) return true
+    if (c < GRID - 1 && board[r][c] === board[r][c + 1]) return true
+    if (r < GRID - 1 && board[r][c] === board[r + 1][c]) return true
+  }
+  return false
+}
+const TILE_COLORS = {
+  2: '#eee4da', 4: '#ede0c8', 8: '#f2b179', 16: '#f59563', 32: '#f67c5f', 64: '#f65e3b',
+  128: '#edcf72', 256: '#edcc61', 512: '#edc850', 1024: '#edc53f', 2048: '#edc22e',
+}
+
+function MergeGame({ game }) {
+  const questions = game.game_data?.questions || []
+  const [board, setBoard] = useState(() => spawnTile(spawnTile(emptyBoard())))
+  const [score, setScore] = useState(0)
+  const [moveCount, setMoveCount] = useState(0)
+  const [qIdx, setQIdx] = useState(0)
+  const [showQuestion, setShowQuestion] = useState(false)
+  const [gameOver, setGameOver] = useState(false)
+  const touchStart = useRef(null)
+
+  function move(direction) {
+    if (gameOver || showQuestion) return
+    const { board: next, scoreGained, changed } = moveBoard(board, direction)
+    if (!changed) return
+    playRaceAdvance()
+    const withNewTile = spawnTile(next)
+    setBoard(withNewTile)
+    setScore((s) => s + scoreGained)
+    const newCount = moveCount + 1
+    setMoveCount(newCount)
+    if (!hasMovesLeft(withNewTile)) { setGameOver(true); return }
+    if (newCount % QUESTION_EVERY_N_MOVES === 0 && qIdx < questions.length) {
+      setShowQuestion(true)
+    }
+  }
+
+  function answerQuestion(choiceIndex) {
+    const q = questions[qIdx]
+    if (choiceIndex === q.correctIndex) {
+      playCorrect()
+      setBoard((b) => spawnTile(b, 32)) // bonus high-value tile
+    } else {
+      playWrong()
+    }
+    setQIdx((i) => i + 1)
+    setShowQuestion(false)
+  }
+
+  function handleKey(e) {
+    const map = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }
+    if (map[e.key]) { e.preventDefault(); move(map[e.key]) }
+  }
+  useEffect(() => {
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  })
+
+  function onTouchStart(e) { touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }
+  function onTouchEnd(e) {
+    if (!touchStart.current) return
+    const dx = e.changedTouches[0].clientX - touchStart.current.x
+    const dy = e.changedTouches[0].clientY - touchStart.current.y
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 30) return
+    if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 'right' : 'left')
+    else move(dy > 0 ? 'down' : 'up')
+    touchStart.current = null
+  }
+
+  const highestTile = Math.max(0, ...board.flat())
+
+  useEffect(() => {
+    if (gameOver) playVictoryFanfare()
+  }, [gameOver])
+
+  if (gameOver) {
+    return (
+      <div>
+        <h1 style={{ fontSize: 30, marginBottom: 8 }}>Game Over!</h1>
+        <p style={{ fontSize: 18 }}>Score: {score} · Highest tile: {highestTile}</p>
+        <button onClick={() => window.location.reload()} style={playAgainStyle}>Play Again</button>
+      </div>
+    )
+  }
+
+  if (showQuestion && questions[qIdx]) {
+    const q = questions[qIdx]
+    return (
+      <div>
+        <p style={{ fontSize: 12, opacity: 0.8, marginBottom: 8 }}>Bonus round! Answer right for a free 32-tile:</p>
+        <h2 style={{ fontSize: 20, marginBottom: 20 }}>{q.question}</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          {q.choices.map((choice, i) => (
+            <button key={i} onClick={() => answerQuestion(i)} style={{
+              padding: '14px 10px', fontSize: 14, fontWeight: 600, borderRadius: 8, border: 'none',
+              background: 'rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer',
+            }}>
+              {choice}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <p style={{ fontSize: 13, opacity: 0.85, marginBottom: 8 }}>Score: {score} · Swipe or use arrow keys to merge</p>
+      <div
+        onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
+        style={{
+          display: 'grid', gridTemplateColumns: `repeat(${GRID}, 1fr)`, gap: 8, background: 'rgba(0,0,0,0.25)',
+          padding: 8, borderRadius: 10, maxWidth: 320, margin: '0 auto', touchAction: 'none',
+        }}
+      >
+        {board.flat().map((val, i) => (
+          <div key={i} style={{
+            aspectRatio: '1 / 1', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: 6, fontWeight: 800, fontSize: val >= 1000 ? 16 : 20,
+            background: val ? TILE_COLORS[val] || '#3c3a32' : 'rgba(255,255,255,0.08)',
+            color: val <= 4 ? '#776e65' : '#fff',
+          }}>
+            {val || ''}
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 14, display: 'flex', justifyContent: 'center', gap: 8 }}>
+        <button onClick={() => move('left')} style={arrowBtnStyle}>←</button>
+        <button onClick={() => move('up')} style={arrowBtnStyle}>↑</button>
+        <button onClick={() => move('down')} style={arrowBtnStyle}>↓</button>
+        <button onClick={() => move('right')} style={arrowBtnStyle}>→</button>
+      </div>
+    </div>
+  )
+}
+const arrowBtnStyle = { width: 44, height: 44, fontSize: 18, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.2)', color: '#fff', cursor: 'pointer' }

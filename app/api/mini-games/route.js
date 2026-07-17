@@ -7,7 +7,7 @@ import { buildQuizPrompt, buildWordlePrompt, buildQuestionSet, generateMathRacer
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-const VALID_TYPES = ['quiz', 'wordle', 'math_racer', 'muncher', 'fact_dash', 'tycoon']
+const VALID_TYPES = ['quiz', 'wordle', 'math_racer', 'muncher', 'fact_dash', 'tycoon', 'merge']
 
 export async function POST(request) {
   const user = await getCurrentUser()
@@ -35,6 +35,10 @@ export async function POST(request) {
       gameData = await buildQuestionSet(anthropic, { subject, topic, grade, numQuestions: 15, numChoices: 3 })
     } else if (gameType === 'tycoon') {
       gameData = await buildQuestionSet(anthropic, { subject, topic, grade, numQuestions: 10, numChoices: 4 })
+    } else if (gameType === 'merge') {
+      // fewer questions -- these are periodic bonus triggers during a
+      // merge session, not read back-to-back like a quiz
+      gameData = await buildQuestionSet(anthropic, { subject, topic, grade, numQuestions: 8, numChoices: 4 })
     } else {
       // math_racer is procedural, not an AI call -- instant, zero latency,
       // which matters for a fast-paced racing game teachers want to fire
