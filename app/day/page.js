@@ -16,6 +16,7 @@ export default function DayPlanPage() {
   const [editingId, setEditingId] = useState(null) // block id currently in inline-edit mode
   const [swappingId, setSwappingId] = useState(null) // block id currently showing the activity quick-pick
   const [mode, setMode] = useState('board') // 'board' (desk display, default) | 'edit' (fine controls)
+  const [grade, setGrade] = useState('')
   const [now, setNow] = useState(new Date())
   const [aiPanelBlockId, setAiPanelBlockId] = useState(null) // which board block has the AI panel open
   const [aiTopic, setAiTopic] = useState('')
@@ -45,6 +46,12 @@ export default function DayPlanPage() {
   }, [])
 
   useEffect(() => { load(date) }, [date, load])
+  useEffect(() => {
+    fetch('/api/class-setup').then((r) => r.json()).then((d) => {
+      const grades = d.setup?.grades
+      if (grades?.length) setGrade(String(grades[0]))
+    }).catch(() => {})
+  }, [])
 
   function persist(nextBlocks, nextNotes) {
     setSaving(true)
@@ -113,7 +120,7 @@ export default function DayPlanPage() {
     try {
       const res = await fetch('/api/mini-games', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gameType, subject: block.subject, topic: aiTopic, grade: '' }),
+        body: JSON.stringify({ gameType, subject: block.subject, topic: aiTopic, grade }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
@@ -132,7 +139,7 @@ export default function DayPlanPage() {
     try {
       const res = await fetch('/api/mini-games', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gameType: 'quiz', subject: block.subject, topic: aiTopic, grade: '' }),
+        body: JSON.stringify({ gameType: 'quiz', subject: block.subject, topic: aiTopic, grade }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
@@ -279,6 +286,7 @@ export default function DayPlanPage() {
                           <button onClick={() => generateGame(b, 'quiz')} style={aiActionBtnStyle}>🎮 Quiz Game</button>
                           <button onClick={() => generateAndStartLive(b)} style={{ ...aiActionBtnStyle, background: '#4a2a6a', color: '#fff', borderColor: '#4a2a6a' }}>🏆 Live Event</button>
                           <button onClick={() => generateGame(b, 'wordle')} style={aiActionBtnStyle}>🔤 Word Guess</button>
+                          <button onClick={() => generateGame(b, 'math_racer')} style={aiActionBtnStyle}>🏎️ Math Racer</button>
                         </div>
                         <button onClick={() => setAiPanelBlockId(null)} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 12, marginLeft: 'auto' }}>Close</button>
                       </div>

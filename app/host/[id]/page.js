@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { playGameStart, playCorrect, playVictoryFanfare } from '@/lib/sounds'
 
 export default function HostSessionPage({ params }) {
   const [sessionId, setSessionId] = useState(null)
@@ -41,6 +42,9 @@ export default function HostSessionPage({ params }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       })
+      if (action === 'start') playGameStart()
+      if (action === 'reveal') playCorrect()
+      if (action === 'next' && data?.currentQuestionIndex + 1 >= data?.totalQuestions) playVictoryFanfare()
       poll(sessionId)
     } finally {
       setActing(false)

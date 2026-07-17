@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { playClick, playCorrect, playWrong, playVictoryFanfare } from '@/lib/sounds'
 
 const BG = 'linear-gradient(135deg, #4a6fa5 0%, #7a5aa5 100%)'
 const STORAGE_KEY_PREFIX = 'live_quiz_player_'
@@ -56,6 +57,12 @@ export default function JoinGamePage({ params }) {
   // Reset the "answered" flag whenever the question index changes.
   useEffect(() => { setAnswered(false); setLastResult(null) }, [data?.currentQuestionIndex])
 
+  // Fire the fanfare exactly once when the game wraps up, not on every
+  // poll tick while the finished screen stays mounted.
+  useEffect(() => {
+    if (data?.status === 'finished') playVictoryFanfare()
+  }, [data?.status])
+
   async function join() {
     if (!nickname.trim()) return
     setJoining(true)
@@ -79,6 +86,7 @@ export default function JoinGamePage({ params }) {
   async function submitAnswer(choiceIndex) {
     if (answered) return
     setAnswered(true)
+    playClick()
     try {
       const res = await fetch(`/api/game-sessions/${sessionId}/answer`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -88,6 +96,7 @@ export default function JoinGamePage({ params }) {
       if (res.ok) {
         setLastResult({ correct: d.correct, points: d.points })
         setScore((s) => s + (d.points || 0))
+        if (d.correct) playCorrect(); else playWrong()
       }
     } catch { /* keep answered=true either way -- retrying a live quiz answer isn't worth the complexity */ }
   }
