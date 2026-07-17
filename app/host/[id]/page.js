@@ -4,14 +4,16 @@ import { playGameStart, playCorrect, playVictoryFanfare } from '@/lib/sounds'
 
 export default function HostSessionPage({ params }) {
   const [sessionId, setSessionId] = useState(null)
+  const [hostToken, setHostToken] = useState(null)
   const [data, setData] = useState(null)
   const [joinCode, setJoinCode] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [acting, setActing] = useState(false)
 
-  const poll = useCallback((id) => {
-    fetch(`/api/game-sessions/${id}?role=host`)
+  const poll = useCallback((id, token) => {
+    const q = token ? `&hostToken=${token}` : ''
+    fetch(`/api/game-sessions/${id}?role=host${q}`)
       .then((r) => r.json())
       .then((d) => {
         if (d.error) { setError(d.error); return }
@@ -25,27 +27,29 @@ export default function HostSessionPage({ params }) {
     (async () => {
       const p = await params
       setSessionId(p.id)
-      poll(p.id)
+      const token = new URLSearchParams(window.location.search).get('hostToken')
+      setHostToken(token)
+      poll(p.id, token)
     })()
   }, [params, poll])
 
   useEffect(() => {
     if (!sessionId) return
-    const interval = setInterval(() => poll(sessionId), 2000)
+    const interval = setInterval(() => poll(sessionId, hostToken), 2000)
     return () => clearInterval(interval)
-  }, [sessionId, poll])
+  }, [sessionId, hostToken, poll])
 
   async function control(action) {
     setActing(true)
     try {
       await fetch(`/api/game-sessions/${sessionId}/control`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, hostToken }),
       })
       if (action === 'start') playGameStart()
       if (action === 'reveal') playCorrect()
       if (action === 'next' && data?.currentQuestionIndex + 1 >= data?.totalQuestions) playVictoryFanfare()
-      poll(sessionId)
+      poll(sessionId, hostToken)
     } finally {
       setActing(false)
     }

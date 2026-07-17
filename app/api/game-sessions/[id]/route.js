@@ -7,19 +7,21 @@
 import { getCurrentUser } from '@/lib/session'
 import { sbSelect } from '@/lib/supabase'
 import { shapeForPlayer, shapeForHost } from '@/lib/live-game'
+import { isAuthorizedHost } from '@/lib/game-auth'
 
 export async function GET(request, { params }) {
   try {
     const { id } = await params
     const { searchParams } = new URL(request.url)
     const role = searchParams.get('role') === 'host' ? 'host' : 'player'
+    const hostToken = searchParams.get('hostToken') || null
 
     const [session] = await sbSelect('game_sessions', `?id=eq.${id}&select=*&limit=1`)
     if (!session) return Response.json({ error: 'Session not found' }, { status: 404 })
 
     if (role === 'host') {
       const user = await getCurrentUser()
-      if (!user || user.id !== session.user_id) return Response.json({ error: 'Not authorized' }, { status: 403 })
+      if (!isAuthorizedHost(session, user, hostToken)) return Response.json({ error: 'Not authorized' }, { status: 403 })
     }
 
     const [game] = await sbSelect('mini_games', `?id=eq.${session.mini_game_id}&select=game_data&limit=1`)

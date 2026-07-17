@@ -137,13 +137,13 @@ export default function DayPlanPage() {
     setGameLoading(true)
     setGameResult(null)
     try {
-      const res = await fetch('/api/mini-games', {
+      const res = await fetch('/api/game-sessions', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gameType: 'quiz', subject: block.subject, topic: aiTopic, grade }),
+        body: JSON.stringify({ subject: block.subject, topic: aiTopic, grade }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
-      await startLiveSession(data.game.id)
+      window.open(`/host/${data.session.id}`, '_blank')
       setAiPanelBlockId(null)
     } catch (e) {
       setGameResult({ error: e.message })
@@ -175,19 +175,13 @@ export default function DayPlanPage() {
     setGameLoading(true)
     setGameResult(null)
     try {
-      const res = await fetch('/api/mini-games', {
+      const res = await fetch('/api/game-sessions', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gameType: 'quiz', subject: block.subject, topic: aiTopic, grade }),
+        body: JSON.stringify({ subject: block.subject, topic: aiTopic, grade, isDuel: true }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
-      const sessRes = await fetch('/api/game-sessions', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ miniGameId: data.game.id, isDuel: true }),
-      })
-      const sessData = await sessRes.json()
-      if (!sessRes.ok) throw new Error(sessData.error || 'Failed')
-      window.open(`/host/${sessData.session.id}`, '_blank')
+      window.open(`/host/${data.session.id}`, '_blank')
       setAiPanelBlockId(null)
     } catch (e) {
       setGameResult({ error: e.message })
@@ -196,12 +190,19 @@ export default function DayPlanPage() {
     }
   }
 
-  async function startLiveSession(gameId) {
+  async function startLiveSession(subject) {
+    // Kept for the "Quiz Game" panel's follow-up "Start Shared Live Event
+    // Instead" button, which already has a generated solo quiz in hand
+    // but wants a live session instead. game-sessions always generates
+    // its own quiz now (keeps the cross-app contract in
+    // lib/game-factory.js single-purpose), so this just re-runs
+    // generation once more under the live wrapper rather than reusing
+    // the solo one -- a touch wasteful but simple and correct.
     setGameLoading(true)
     try {
       const res = await fetch('/api/game-sessions', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ miniGameId: gameId }),
+        body: JSON.stringify({ subject, topic: aiTopic, grade }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
@@ -353,7 +354,7 @@ export default function DayPlanPage() {
                         <p style={{ fontSize: 11, color: '#888', marginTop: 8, wordBreak: 'break-all' }}>{gameResult.playUrl}</p>
                         {gameResult.gameType === 'quiz' && (
                           <div style={{ marginTop: 4, marginBottom: 4 }}>
-                            <button onClick={() => startLiveSession(gameResult.gameId)} disabled={gameLoading} style={{ ...aiActionBtnStyle, background: '#4a2a6a', color: '#fff', borderColor: '#4a2a6a' }}>
+                            <button onClick={() => startLiveSession(b.subject)} disabled={gameLoading} style={{ ...aiActionBtnStyle, background: '#4a2a6a', color: '#fff', borderColor: '#4a2a6a' }}>
                               🏆 Start Shared Live Event Instead
                             </button>
                             <p style={{ fontSize: 10, color: '#999', marginTop: 4 }}>Opens a host screen in a new tab with a join code + live leaderboard — everyone answers together in real time.</p>

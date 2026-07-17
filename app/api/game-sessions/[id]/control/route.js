@@ -6,17 +6,17 @@
 //                  restarts; or -> finished if that was the last question)
 import { getCurrentUser } from '@/lib/session'
 import { sbSelect, sbUpdate } from '@/lib/supabase'
+import { isAuthorizedHost } from '@/lib/game-auth'
 
 export async function POST(request, { params }) {
-  const user = await getCurrentUser()
-  if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
   try {
     const { id } = await params
-    const { action } = await request.json()
+    const { action, hostToken } = await request.json()
+    const user = await getCurrentUser()
 
     const [session] = await sbSelect('game_sessions', `?id=eq.${id}&select=*&limit=1`)
     if (!session) return Response.json({ error: 'Session not found' }, { status: 404 })
-    if (session.user_id !== user.id) return Response.json({ error: 'Not authorized' }, { status: 403 })
+    if (!isAuthorizedHost(session, user, hostToken)) return Response.json({ error: 'Not authorized' }, { status: 403 })
 
     let patch
     if (action === 'start') {

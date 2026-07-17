@@ -1,6 +1,7 @@
 // app/api/draw-sessions/[id]/route.js
 import { getCurrentUser } from '@/lib/session'
 import { sbSelect } from '@/lib/supabase'
+import { isAuthorizedHost } from '@/lib/game-auth'
 
 export async function GET(request, { params }) {
   try {
@@ -8,13 +9,14 @@ export async function GET(request, { params }) {
     const { searchParams } = new URL(request.url)
     const role = searchParams.get('role') === 'host' ? 'host' : 'player'
     const playerId = searchParams.get('playerId') || null
+    const hostToken = searchParams.get('hostToken') || null
 
     const [session] = await sbSelect('draw_sessions', `?id=eq.${id}&select=*&limit=1`)
     if (!session) return Response.json({ error: 'Session not found' }, { status: 404 })
 
     if (role === 'host') {
       const user = await getCurrentUser()
-      if (!user || user.id !== session.user_id) return Response.json({ error: 'Not authorized' }, { status: 403 })
+      if (!isAuthorizedHost(session, user, hostToken)) return Response.json({ error: 'Not authorized' }, { status: 403 })
     }
 
     const players = await sbSelect('draw_players', `?session_id=eq.${id}&select=*&order=score.desc`)

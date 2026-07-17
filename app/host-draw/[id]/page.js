@@ -3,14 +3,16 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 
 export default function HostDrawSessionPage({ params }) {
   const [sessionId, setSessionId] = useState(null)
+  const [hostToken, setHostToken] = useState(null)
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
   const canvasRef = useRef(null)
 
-  const poll = useCallback((id) => {
-    fetch(`/api/draw-sessions/${id}?role=host`)
+  const poll = useCallback((id, token) => {
+    const q = token ? `&hostToken=${token}` : ''
+    fetch(`/api/draw-sessions/${id}?role=host${q}`)
       .then((r) => r.json())
       .then((d) => {
         if (d.error) { setError(d.error); return }
@@ -23,15 +25,17 @@ export default function HostDrawSessionPage({ params }) {
     (async () => {
       const p = await params
       setSessionId(p.id)
-      poll(p.id)
+      const token = new URLSearchParams(window.location.search).get('hostToken')
+      setHostToken(token)
+      poll(p.id, token)
     })()
   }, [params, poll])
 
   useEffect(() => {
     if (!sessionId) return
-    const interval = setInterval(() => poll(sessionId), 800)
+    const interval = setInterval(() => poll(sessionId, hostToken), 800)
     return () => clearInterval(interval)
-  }, [sessionId, poll])
+  }, [sessionId, hostToken, poll])
 
   useEffect(() => {
     if (!data?.canvasData || !canvasRef.current) return
@@ -43,9 +47,9 @@ export default function HostDrawSessionPage({ params }) {
     try {
       await fetch(`/api/draw-sessions/${sessionId}/control`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, hostToken }),
       })
-      poll(sessionId)
+      poll(sessionId, hostToken)
     } finally {
       setActing(false)
     }
