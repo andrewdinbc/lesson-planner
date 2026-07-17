@@ -191,6 +191,7 @@ export default function Dashboard() {
 
         <div style={{ display: 'flex', gap: 16, marginBottom: 40, fontSize: 13 }}>
           <a href="/timeline" style={{ color: C.navy, textDecoration: 'none', fontWeight: 600 }}>🎬 Year Timeline</a>
+          <a href="/day" style={{ color: C.navy, textDecoration: 'none', fontWeight: 600 }}>📝 Daily Planner</a>
           <a href="/print/scope-sequence" style={{ color: C.navy, textDecoration: 'none', fontWeight: 600 }}>🖨️ Printable Scope &amp; Sequence</a>
         </div>
 
