@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { CURRICULUM_MODELS } from '@/lib/curriculum-models'
 import { useRequireAuth } from '@/lib/useRequireAuth'
+import { useRouter } from 'next/navigation'
 
 import { COLORS as C, FONT_BODY } from '@/lib/theme'
 
@@ -40,9 +41,13 @@ function defaultSchoolYearRange() {
 
 export default function YearPlanPage() {
   const authChecked = useRequireAuth()
-  const [modelKey, setModelKey] = useState('standards_based')
+  const router = useRouter()
+  const [modelKey, setModelKey] = useState('subject_centered')
   const [periods, setPeriods] = useState([])
   const [windows, setWindows] = useState(null)
+  const [teacherGrades, setTeacherGrades] = useState([])
+  const [newSubjectName, setNewSubjectName] = useState('')
+  const [addingSubject, setAddingSubject] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [startDate, setStartDate] = useState('')
@@ -61,6 +66,7 @@ export default function YearPlanPage() {
       .then((d) => {
         setPeriods(d.periods || [])
         setWindows(d.windows || null)
+        setTeacherGrades(d.grades || [])
       })
       .finally(() => setLoading(false))
   }, [])
@@ -91,9 +97,31 @@ export default function YearPlanPage() {
       }),
     })
     const data = await res.json()
-    setPeriods(data.periods || periods)
-    setWindows(data.windows || null)
     setSaving(false)
+    if (!res.ok) return
+    // Save & Continue -- previously this just saved and sat there with no
+    // next step. Moves the teacher forward to Unit Priorities, which is
+    // the natural next stage after the year's overall structure is set.
+    router.push('/units')
+  }
+
+  async function addSubject() {
+    if (!newSubjectName.trim()) return
+    setAddingSubject(true)
+    try {
+      const res = await fetch('/api/year-plan-lens', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model_key: modelKey, period_label: newSubjectName.trim() }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setPeriods(data.periods || periods)
+        setNewSubjectName('')
+      }
+    } finally {
+      setAddingSubject(false)
+    }
   }
 
   const total = periods.reduce((sum, p) => sum + Number(p.period_pct || 0), 0)
@@ -313,7 +341,14 @@ export default function YearPlanPage() {
               return (
                 <div key={p.period_label} style={{ marginBottom: 14 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ flex: 1, fontSize: 14 }}>{p.period_label}</span>
+                    <span style={{ flex: 1, fontSize: 14 }}>
+                      {p.period_label}
+                      {teacherGrades.length > 0 && modelKey === 'subject_centered' && (
+                        <span style={{ fontSize: 11, color: '#999', marginLeft: 6 }}>
+                          (Grade{teacherGrades.length > 1 ? 's' : ''} {teacherGrades.join('/')})
+                        </span>
+                      )}
+                    </span>
                     <input
                       type="range" min="5" max="70" step="1" value={Math.round(p.period_pct)}
                       onChange={(e) => updatePeriodPct(p.period_label, Number(e.target.value))}
@@ -330,6 +365,25 @@ export default function YearPlanPage() {
                 </div>
               )
             })}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 16, paddingTop: 16, borderTop: `1px solid ${C.border}` }}>
+              <input
+                value={newSubjectName} onChange={(e) => setNewSubjectName(e.target.value)}
+                placeholder="Add another subject…"
+                onKeyDown={(e) => { if (e.key === 'Enter') addSubject() }}
+                style={{ flex: 1, padding: 8, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }}
+              />
+              <button
+                onClick={addSubject} disabled={addingSubject || !newSubjectName.trim()}
+                style={{
+                  padding: '8px 16px', background: C.navy, color: '#fff', border: 'none', borderRadius: 6,
+                  fontSize: 13, fontWeight: 600, cursor: newSubjectName.trim() ? 'pointer' : 'not-allowed',
+                  opacity: newSubjectName.trim() ? 1 : 0.5,
+                }}
+              >
+                {addingSubject ? 'Adding…' : '+ Add Subject'}
+              </button>
+            </div>
           </div>
         )}
 
@@ -338,12 +392,13 @@ export default function YearPlanPage() {
           title="Normalizes all periods to sum to 100% and saves your allocation."
           style={{ padding: '10px 24px', background: C.gold, color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}
         >
-          {saving ? 'Saving…' : 'Save Year Structure'}
+          {saving ? 'Saving…' : 'Save & Continue →'}
         </button>
       </div>
     </div>
   )
 }
+
 
 
 
