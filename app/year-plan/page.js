@@ -49,6 +49,7 @@ export default function YearPlanPage() {
   const [newSubjectName, setNewSubjectName] = useState('')
   const [addingSubject, setAddingSubject] = useState(false)
   const [openQA, setOpenQA] = useState(null) // period_label currently expanded
+  const [moreSubjectsOpen, setMoreSubjectsOpen] = useState(false) // expandable section for smaller-share subjects
   const [qaQuestion, setQaQuestion] = useState('')
   const [qaAnswer, setQaAnswer] = useState('')
   const [qaLoading, setQaLoading] = useState(false)
@@ -358,73 +359,105 @@ export default function YearPlanPage() {
                 {Math.round(total)}% allocated
               </span>
             </div>
-            {periods.map((p) => {
-              const w = windows ? windows.find((win) => win.period_label === p.period_label) : null
-              return (
-                <div key={p.period_label} style={{ marginBottom: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ flex: 1, fontSize: 14 }}>
-                      {p.period_label}
-                      {teacherGrades.length > 0 && modelKey === 'subject_centered' && (
-                        <span style={{ fontSize: 11, color: '#999', marginLeft: 6 }}>
-                          (Grade{teacherGrades.length > 1 ? 's' : ''} {teacherGrades.join('/')})
-                        </span>
-                      )}
-                    </span>
-                    <input
-                      type="range" min="5" max="70" step="1" value={Math.round(p.period_pct)}
-                      onChange={(e) => updatePeriodPct(p.period_label, Number(e.target.value))}
-                      style={{ width: 160 }}
-                      title="Adjust this period's share of the year. Other periods rebalance proportionally when you save."
-                    />
-                    <span style={{ fontSize: 12, color: '#888', width: 40 }}>{Math.round(p.period_pct)}%</span>
-                  </div>
-                  {w && (
-                    <div style={{ fontSize: 11, color: '#999', marginLeft: 0, marginTop: 2 }}>
-                      Weeks {w.startWeek}–{w.endWeek} ({w.weekCount} weeks)
+            {(() => {
+              // Subjects below this share of the year are secondary (electives,
+              // rotary blocks, etc.) and collapse into an expandable section at
+              // the bottom instead of competing for space with the core subjects.
+              const PRIMARY_THRESHOLD_PCT = 15
+              const primaryPeriods = periods.filter((p) => Number(p.period_pct) >= PRIMARY_THRESHOLD_PCT)
+              const secondaryPeriods = periods.filter((p) => Number(p.period_pct) < PRIMARY_THRESHOLD_PCT)
+
+              const renderPeriod = (p) => {
+                const w = windows ? windows.find((win) => win.period_label === p.period_label) : null
+                return (
+                  <div key={p.period_label} style={{ marginBottom: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ flex: 1, fontSize: 14 }}>
+                        {p.period_label}
+                        {teacherGrades.length > 0 && modelKey === 'subject_centered' && (
+                          <span style={{ fontSize: 11, color: '#999', marginLeft: 6 }}>
+                            (Grade{teacherGrades.length > 1 ? 's' : ''} {teacherGrades.join('/')})
+                          </span>
+                        )}
+                      </span>
+                      <input
+                        type="range" min="5" max="70" step="1" value={Math.round(p.period_pct)}
+                        onChange={(e) => updatePeriodPct(p.period_label, Number(e.target.value))}
+                        style={{ width: 160 }}
+                        title="Adjust this period's share of the year. Other periods rebalance proportionally when you save."
+                      />
+                      <span style={{ fontSize: 12, color: '#888', width: 40 }}>{Math.round(p.period_pct)}%</span>
                     </div>
-                  )}
-
-                  <button
-                    onClick={() => {
-                      const isOpen = openQA === p.period_label
-                      setOpenQA(isOpen ? null : p.period_label)
-                      if (!isOpen) { setQaQuestion(''); setQaAnswer('') }
-                    }}
-                    style={{ background: 'none', border: 'none', color: C.navy, fontSize: 11, cursor: 'pointer', padding: '4px 0', textDecoration: 'underline' }}
-                  >
-                    {openQA === p.period_label ? '▾ Hide' : '▸ Ask AI about'} {p.period_label}
-                  </button>
-
-                  {openQA === p.period_label && (
-                    <div style={{ background: '#f7f5f0', border: `1px solid ${C.border}`, borderRadius: 8, padding: 12, marginTop: 4 }}>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <input
-                          value={qaQuestion} onChange={(e) => setQaQuestion(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') askSubjectQA(p.period_label) }}
-                          placeholder={`e.g. "What should ${p.period_label} cover this term?"`}
-                          style={{ flex: 1, padding: 8, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }}
-                        />
-                        <button
-                          onClick={() => askSubjectQA(p.period_label)}
-                          disabled={qaLoading || !qaQuestion.trim()}
-                          style={{
-                            padding: '8px 14px', background: C.gold, color: '#fff', border: 'none', borderRadius: 6,
-                            fontSize: 12, fontWeight: 600, cursor: qaQuestion.trim() ? 'pointer' : 'not-allowed',
-                            opacity: qaQuestion.trim() ? 1 : 0.5,
-                          }}
-                        >
-                          {qaLoading ? 'Asking…' : 'Ask'}
-                        </button>
+                    {w && (
+                      <div style={{ fontSize: 11, color: '#999', marginLeft: 0, marginTop: 2 }}>
+                        Weeks {w.startWeek}–{w.endWeek} ({w.weekCount} weeks)
                       </div>
-                      {qaAnswer && (
-                        <p style={{ fontSize: 13, color: '#333', marginTop: 10, marginBottom: 0, whiteSpace: 'pre-wrap' }}>{qaAnswer}</p>
-                      )}
+                    )}
+
+                    <button
+                      onClick={() => {
+                        const isOpen = openQA === p.period_label
+                        setOpenQA(isOpen ? null : p.period_label)
+                        if (!isOpen) { setQaQuestion(''); setQaAnswer('') }
+                      }}
+                      style={{ background: 'none', border: 'none', color: C.navy, fontSize: 11, cursor: 'pointer', padding: '4px 0', textDecoration: 'underline' }}
+                    >
+                      {openQA === p.period_label ? '▾ Hide' : '▸ Ask AI about'} {p.period_label}
+                    </button>
+
+                    {openQA === p.period_label && (
+                      <div style={{ background: '#f7f5f0', border: `1px solid ${C.border}`, borderRadius: 8, padding: 12, marginTop: 4 }}>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <input
+                            value={qaQuestion} onChange={(e) => setQaQuestion(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') askSubjectQA(p.period_label) }}
+                            placeholder={`e.g. "What should ${p.period_label} cover this term?"`}
+                            style={{ flex: 1, padding: 8, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }}
+                          />
+                          <button
+                            onClick={() => askSubjectQA(p.period_label)}
+                            disabled={qaLoading || !qaQuestion.trim()}
+                            style={{
+                              padding: '8px 14px', background: C.gold, color: '#fff', border: 'none', borderRadius: 6,
+                              fontSize: 12, fontWeight: 600, cursor: qaQuestion.trim() ? 'pointer' : 'not-allowed',
+                              opacity: qaQuestion.trim() ? 1 : 0.5,
+                            }}
+                          >
+                            {qaLoading ? 'Asking…' : 'Ask'}
+                          </button>
+                        </div>
+                        {qaAnswer && (
+                          <p style={{ fontSize: 13, color: '#333', marginTop: 10, marginBottom: 0, whiteSpace: 'pre-wrap' }}>{qaAnswer}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+
+              return (
+                <>
+                  {primaryPeriods.map(renderPeriod)}
+
+                  {secondaryPeriods.length > 0 && (
+                    <div style={{ marginTop: primaryPeriods.length > 0 ? 8 : 0 }}>
+                      <button
+                        type="button"
+                        onClick={() => setMoreSubjectsOpen((v) => !v)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer',
+                          fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', margin: '4px 0 10px', padding: 0,
+                        }}
+                      >
+                        <span style={{ display: 'inline-block', transform: moreSubjectsOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▸</span>
+                        More subjects {moreSubjectsOpen ? '' : `(${secondaryPeriods.length})`}
+                      </button>
+                      {moreSubjectsOpen && secondaryPeriods.map(renderPeriod)}
                     </div>
                   )}
-                </div>
+                </>
               )
-            })}
+            })()}
 
             <div style={{ display: 'flex', gap: 8, marginTop: 16, paddingTop: 16, borderTop: `1px solid ${C.border}` }}>
               <input
