@@ -95,6 +95,26 @@ export default function Dashboard() {
   const [units, setUnits] = useState([])
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState({})
+  const [uploadingType, setUploadingType] = useState(null)
+  const [uploadResult, setUploadResult] = useState(null)
+
+  async function uploadDoc(file, docType) {
+    setUploadingType(docType)
+    setUploadResult(null)
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('docType', docType)
+    try {
+      const res = await fetch('/api/calendar-events/extract', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Upload failed')
+      setUploadResult(data)
+    } catch (e) {
+      setUploadResult({ error: e.message })
+    } finally {
+      setUploadingType(null)
+    }
+  }
   const supabase = createClient()
 
   useEffect(() => {
@@ -189,10 +209,40 @@ export default function Dashboard() {
             tooltip="Add sites and materials you like so the AI can reference them" />
         </div>
 
-        <div style={{ display: 'flex', gap: 16, marginBottom: 40, fontSize: 13 }}>
+        <div style={{ display: 'flex', gap: 16, marginBottom: 20, fontSize: 13 }}>
           <a href="/timeline" style={{ color: C.navy, textDecoration: 'none', fontWeight: 600 }}>🎬 Year Timeline</a>
           <a href="/day" style={{ color: C.navy, textDecoration: 'none', fontWeight: 600 }}>📝 Daily Planner</a>
           <a href="/print/scope-sequence" style={{ color: C.navy, textDecoration: 'none', fontWeight: 600 }}>🖨️ Printable Scope &amp; Sequence</a>
+        </div>
+
+        <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 16, marginBottom: 40 }}>
+          <h3 style={{ color: C.navy, fontSize: 14, margin: '0 0 4px' }}>📋 Upload from your school</h3>
+          <p style={{ fontSize: 12, color: '#888', margin: '0 0 10px' }}>
+            Staff meeting minutes or your principal's "week at a glance" — dated events get pulled out and slotted into your schedule automatically. (Also available on the <a href="/week" style={{ color: C.navy }}>Weekly Schedule</a> page.)
+          </p>
+          <div style={{ display: 'flex', gap: 16 }}>
+            <label style={{ fontSize: 12, cursor: 'pointer', padding: '8px 14px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6 }}>
+              {uploadingType === 'meeting_minutes' ? 'Reading…' : '📄 Upload Staff Meeting Minutes'}
+              <input type="file" accept="application/pdf" style={{ display: 'none' }}
+                onChange={(e) => e.target.files[0] && uploadDoc(e.target.files[0], 'meeting_minutes')} disabled={!!uploadingType} />
+            </label>
+            <label style={{ fontSize: 12, cursor: 'pointer', padding: '8px 14px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6 }}>
+              {uploadingType === 'week_at_a_glance' ? 'Reading…' : '🗓️ Upload Week at a Glance'}
+              <input type="file" accept="application/pdf" style={{ display: 'none' }}
+                onChange={(e) => e.target.files[0] && uploadDoc(e.target.files[0], 'week_at_a_glance')} disabled={!!uploadingType} />
+            </label>
+          </div>
+          {uploadResult?.error && <p style={{ fontSize: 12, color: '#a33', marginTop: 8 }}>{uploadResult.error}</p>}
+          {uploadResult?.doc && (
+            <div style={{ marginTop: 10, fontSize: 12, color: '#333' }}>
+              <p style={{ margin: '0 0 6px' }}>{uploadResult.doc.summary}</p>
+              {uploadResult.events?.length > 0 && (
+                <p style={{ margin: 0, color: '#1a7a3e' }}>
+                  ✓ {uploadResult.events.length} event{uploadResult.events.length > 1 ? 's' : ''} added: {uploadResult.events.map((e) => e.title).join(', ')}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -265,6 +315,7 @@ export default function Dashboard() {
     </div>
   )
 }
+
 
 
 
