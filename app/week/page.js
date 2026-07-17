@@ -3,7 +3,19 @@ import { useState, useEffect } from 'react'
 import Tooltip from '@/components/Tooltip'
 
 import { COLORS as C, FONT_BODY } from '@/lib/theme'
+import { currentInstructionalWeek } from '@/lib/assessment-types'
+import { activeUnitForSubjectThisWeek } from '@/lib/daily-plan'
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+const BREAK_EMOJI = { Lunch: '🍽', Snack: '🍎', Recess: '⛳', Prep: '📎' }
+
+function mondayOf(date) {
+  const d = new Date(date)
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + diff)
+  return d
+}
+function isoDate(d) { return d.toISOString().slice(0, 10) }
 
 export default function WeekPage() {
   const [prefs, setPrefs] = useState({
@@ -15,12 +27,25 @@ export default function WeekPage() {
     prep_periods_per_week: 3,
     am_core_preference: true,
     fixed_blocks: [],
+    teacher_name: '',
+    room_number: '',
+    notes: '',
   })
   const [schedule, setSchedule] = useState(null)
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
   const [dragged, setDragged] = useState(null) // { day, blockId }
+  const [classSetup, setClassSetup] = useState(null)
+  const [weekNumber, setWeekNumber] = useState(null)
+  const [schoolYear, setSchoolYear] = useState('')
+  const [timelineBlocks, setTimelineBlocks] = useState([])
+  const [weekEvents, setWeekEvents] = useState([])
+  const [uploadingType, setUploadingType] = useState(null) // 'meeting_minutes' | 'week_at_a_glance' | null
+  const [uploadResult, setUploadResult] = useState(null)
+
+  const monday = mondayOf(new Date())
+  const friday = new Date(monday); friday.setDate(friday.getDate() + 4)
 
   useEffect(() => {
     fetch('/api/weekly-schedule')
@@ -30,7 +55,41 @@ export default function WeekPage() {
         if (d.schedule) setSchedule(d.schedule)
       })
       .finally(() => setLoading(false))
+
+    fetch('/api/class-setup').then((r) => r.json()).then((d) => setClassSetup(d.setup || null)).catch(() => {})
+
+    fetch('/api/teacher-inventories').then((r) => r.json()).then((d) => {
+      const summary = d.inventory?.school_calendar_summary
+      if (summary?.schoolOpeningDate) setWeekNumber(currentInstructionalWeek(summary.schoolOpeningDate))
+      if (summary?.schoolYear) setSchoolYear(summary.schoolYear)
+    }).catch(() => {})
+
+    fetch('/api/timeline').then((r) => r.json()).then((d) => setTimelineBlocks(d.blocks || [])).catch(() => {})
+
+    fetch(`/api/calendar-events?from=${isoDate(monday)}&to=${isoDate(friday)}`)
+      .then((r) => r.json()).then((d) => setWeekEvents(d.events || [])).catch(() => {})
   }, [])
+
+  async function uploadDoc(file, docType) {
+    setUploadingType(docType)
+    setUploadResult(null)
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('docType', docType)
+    try {
+      const res = await fetch('/api/calendar-events/extract', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Upload failed')
+      setUploadResult(data)
+      // refresh this week's events in case any landed in the current week
+      fetch(`/api/calendar-events?from=${isoDate(monday)}&to=${isoDate(friday)}`)
+        .then((r) => r.json()).then((d) => setWeekEvents(d.events || [])).catch(() => {})
+    } catch (e) {
+      setUploadResult({ error: e.message })
+    } finally {
+      setUploadingType(null)
+    }
+  }
 
   function updatePref(key, value) {
     setPrefs((p) => ({ ...p, [key]: value }))
@@ -139,7 +198,82 @@ export default function WeekPage() {
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: FONT_BODY, padding: 32 }}>
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
         <a href="/dashboard" style={{ color: C.navy, fontSize: 13 }}>← Dashboard</a>
-        <h1 style={{ color: C.navy, fontSize: 28, margin: '8px 0 20px' }}>Weekly Schedule Builder</h1>
+        <h1 style={{ color: C.navy, fontSize: 28, margin: '8px 0 12px' }}>📅 Weekly Teacher Schedule</h1>
+
+        <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, fontSize: 12 }}>
+            <label>Teacher Name
+              <input value={prefs.teacher_name || ''} onChange={(e) => updatePref('teacher_name', e.target.value)} onBlur={savePrefsOnly}
+                style={headerInputStyle} />
+            </label>
+            <label>Room #
+              <input value={prefs.room_number || ''} onChange={(e) => updatePref('room_number', e.target.value)} onBlur={savePrefsOnly}
+                style={headerInputStyle} />
+            </label>
+            <label>Grade / Class
+              <div style={{ ...headerInputStyle, background: C.bg, color: '#666' }}>
+                {classSetup?.grades?.length ? `Grade ${classSetup.grades.join('/')}` : '—'}
+              </div>
+            </label>
+            <label>Subject Area
+              <div style={{ ...headerInputStyle, background: C.bg, color: '#666' }}>
+                {classSetup?.subjects?.length ? classSetup.subjects.join(', ') : '—'}
+              </div>
+            </label>
+            <label>Week of
+              <div style={{ ...headerInputStyle, background: C.bg, color: '#666' }}>
+                {monday.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })} – {friday.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}
+                {weekNumber && ` (Wk ${weekNumber})`}
+              </div>
+            </label>
+            <label>School Year
+              <div style={{ ...headerInputStyle, background: C.bg, color: '#666' }}>{schoolYear || '—'}</div>
+            </label>
+          </div>
+        </div>
+
+        <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+          <h2 style={{ color: C.navy, fontSize: 15, marginTop: 0 }}>📋 Upload from your school</h2>
+          <p style={{ fontSize: 12, color: '#888', marginTop: -4 }}>
+            Upload staff meeting minutes or your principal's "week at a glance" — dated events (fire drills, assemblies, PD days) are pulled out automatically and slotted into your schedule, bumping whatever was there to the next open spot for that subject.
+          </p>
+          <div style={{ display: 'flex', gap: 20 }}>
+            <label style={{ fontSize: 12, cursor: 'pointer', padding: '8px 14px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6 }}>
+              {uploadingType === 'meeting_minutes' ? 'Reading…' : '📄 Upload Staff Meeting Minutes'}
+              <input type="file" accept="application/pdf" style={{ display: 'none' }}
+                onChange={(e) => e.target.files[0] && uploadDoc(e.target.files[0], 'meeting_minutes')} disabled={!!uploadingType} />
+            </label>
+            <label style={{ fontSize: 12, cursor: 'pointer', padding: '8px 14px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6 }}>
+              {uploadingType === 'week_at_a_glance' ? 'Reading…' : '🗓️ Upload Week at a Glance'}
+              <input type="file" accept="application/pdf" style={{ display: 'none' }}
+                onChange={(e) => e.target.files[0] && uploadDoc(e.target.files[0], 'week_at_a_glance')} disabled={!!uploadingType} />
+            </label>
+          </div>
+          {uploadResult?.error && <p style={{ fontSize: 12, color: '#a33', marginTop: 8 }}>{uploadResult.error}</p>}
+          {uploadResult?.doc && (
+            <div style={{ marginTop: 10, fontSize: 12, color: '#333' }}>
+              <p style={{ margin: '0 0 6px' }}>{uploadResult.doc.summary}</p>
+              {uploadResult.events?.length > 0 && (
+                <p style={{ margin: 0, color: '#1a7a3e' }}>
+                  ✓ {uploadResult.events.length} event{uploadResult.events.length > 1 ? 's' : ''} added: {uploadResult.events.map((e) => e.title).join(', ')}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {weekEvents.length > 0 && (
+          <div style={{ background: '#fdf3e3', border: '1px solid #e8c88a', borderRadius: 10, padding: 14, marginBottom: 16 }}>
+            <h3 style={{ color: '#7a5a1e', fontSize: 13, margin: '0 0 6px' }}>📌 This week's calendar events</h3>
+            {weekEvents.map((ev) => (
+              <div key={ev.id} style={{ fontSize: 12, color: '#7a5a1e', marginBottom: 4 }}>
+                <strong>{new Date(ev.event_date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short' })}</strong>
+                {ev.event_time ? ` ${ev.event_time}` : ''} — {ev.title}
+                {ev.bump_note && <span style={{ color: '#a67c00' }}> ({ev.bump_note})</span>}
+              </div>
+            ))}
+          </div>
+        )}
 
         <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 20, marginBottom: 20 }}>
           <h2 style={{ color: C.navy, fontSize: 16, marginTop: 0 }}>Schedule Setup</h2>
@@ -197,6 +331,11 @@ export default function WeekPage() {
             + Add fixed block
           </button>
 
+          <h3 style={{ color: C.navy, fontSize: 14 }}>📋 Notes / Reminders for the Week</h3>
+          <textarea value={prefs.notes || ''} onChange={(e) => updatePref('notes', e.target.value)} onBlur={savePrefsOnly}
+            rows={3} placeholder="Anything to remember this week…"
+            style={{ width: '100%', padding: 8, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: 'inherit', fontSize: 13, boxSizing: 'border-box', resize: 'vertical', marginBottom: 16 }} />
+
           {error && <div style={{ background: '#fdecea', border: '1px solid #f5b7b1', borderRadius: 8, padding: 12, color: '#c0392b', marginBottom: 12 }}>{error}</div>}
 
           <div style={{ display: 'flex', gap: 10 }}>
@@ -222,7 +361,10 @@ export default function WeekPage() {
                     onDrop={() => onDrop(day, schedule.grid[day].length)}
                     style={{ minHeight: 300, border: `1px dashed ${C.border}`, borderRadius: 6, padding: 4 }}
                   >
-                    {(schedule.grid[day] || []).map((block, idx) => (
+                    {(schedule.grid[day] || []).map((block, idx) => {
+                      const activeUnit = weekNumber ? activeUnitForSubjectThisWeek(timelineBlocks, block.subject, weekNumber) : null
+                      const emoji = BREAK_EMOJI[block.subject]
+                      return (
                       <div
                         key={block.id}
                         draggable={!block.fixed}
@@ -240,10 +382,14 @@ export default function WeekPage() {
                           opacity: block.fixed ? 0.85 : 1,
                         }}
                       >
-                        <div style={{ fontWeight: 600 }}>{block.label}</div>
+                        <div style={{ fontWeight: 600 }}>{emoji ? `${emoji} ` : ''}{block.label}</div>
                         <div style={{ color: '#888' }}>{block.start_time} · {block.length_minutes}m</div>
+                        {activeUnit && (
+                          <div style={{ color: C.navy, fontWeight: 600, marginTop: 2, fontSize: 11 }}>📖 {activeUnit.unit_name}</div>
+                        )}
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               ))}
@@ -254,3 +400,6 @@ export default function WeekPage() {
     </div>
   )
 }
+
+const headerInputStyle = { display: 'block', width: '100%', marginTop: 4, padding: 6, border: `1px solid #e3ddd0`, borderRadius: 6, fontSize: 12, boxSizing: 'border-box', fontFamily: 'inherit', minHeight: 28 }
+
