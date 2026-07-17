@@ -25,19 +25,30 @@ export default function UnitsPage() {
   const [feedbackText, setFeedbackText] = useState('')
   const [feedbackStatus, setFeedbackStatus] = useState('idle') // 'idle' | 'sending' | 'sent' | 'error'
   const [dragInfo, setDragInfo] = useState(null) // { subject, fromIndex }
-  const [defaultAssessmentType, setDefaultAssessmentType] = useState('quiz')
+  const [defaultAssessmentTypes, setDefaultAssessmentTypes] = useState(['quiz'])
+  const [pendingAssessmentTypes, setPendingAssessmentTypes] = useState(['quiz']) // local checkbox state before "Save for later"
   const [savingDefaultType, setSavingDefaultType] = useState(false)
+  const [defaultTypesDirty, setDefaultTypesDirty] = useState(false)
   const [currentWeek, setCurrentWeek] = useState(null)
   const [endWeekByUnit, setEndWeekByUnit] = useState({}) // `${subject}::${unit_name}` -> end_week, from the Timeline
 
-  async function saveDefaultAssessmentType(type) {
-    setDefaultAssessmentType(type)
+  function toggleDefaultAssessmentType(key) {
+    setPendingAssessmentTypes((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+      return next.length ? next : prev // keep at least one checked
+    })
+    setDefaultTypesDirty(true)
+  }
+
+  async function saveDefaultAssessmentTypesForLater() {
     setSavingDefaultType(true)
     try {
       await fetch('/api/assessment-settings', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ default_assessment_type: type }),
+        body: JSON.stringify({ default_assessment_types: pendingAssessmentTypes }),
       })
+      setDefaultAssessmentTypes(pendingAssessmentTypes)
+      setDefaultTypesDirty(false)
     } finally {
       setSavingDefaultType(false)
     }
@@ -121,7 +132,11 @@ export default function UnitsPage() {
 
     fetch('/api/assessment-settings')
       .then((r) => r.json())
-      .then((d) => setDefaultAssessmentType(d.default_assessment_type || 'quiz'))
+      .then((d) => {
+        const types = d.default_assessment_types?.length ? d.default_assessment_types : ['quiz']
+        setDefaultAssessmentTypes(types)
+        setPendingAssessmentTypes(types)
+      })
       .catch(() => {})
 
     // Timeline end_week per unit powers the "unit ending soon" reminder --
@@ -190,18 +205,38 @@ export default function UnitsPage() {
         </div>
 
         <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
-          <label style={{ fontSize: 13 }}>
-            Default assessment type for all units
-            <select
-              value={defaultAssessmentType}
-              onChange={(e) => saveDefaultAssessmentType(e.target.value)}
-              style={{ marginLeft: 10, padding: 6, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }}
+          <div style={{ fontSize: 13, marginBottom: 10 }}>
+            Default assessment type(s) for all units
+            <span style={{ fontSize: 11, color: '#999', fontWeight: 400, marginLeft: 6 }}>(check as many as apply)</span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', marginBottom: 12 }}>
+            {ASSESSMENT_TYPES.map((t) => (
+              <label key={t.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={pendingAssessmentTypes.includes(t.key)}
+                  onChange={() => toggleDefaultAssessmentType(t.key)}
+                />
+                {t.label}
+              </label>
+            ))}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              onClick={saveDefaultAssessmentTypesForLater}
+              disabled={savingDefaultType || !defaultTypesDirty}
+              title="Save your selections now without leaving this page -- you can keep adjusting units and come back to change these later."
+              style={{
+                padding: '8px 16px', background: defaultTypesDirty ? C.gold : '#fff', color: defaultTypesDirty ? '#fff' : '#999',
+                border: `1px solid ${defaultTypesDirty ? C.gold : C.border}`, borderRadius: 6, fontSize: 13, fontWeight: 600,
+                cursor: defaultTypesDirty ? 'pointer' : 'not-allowed',
+              }}
             >
-              {ASSESSMENT_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-            </select>
-            {savingDefaultType && <span style={{ fontSize: 11, color: '#999', marginLeft: 8 }}>Saving…</span>}
-          </label>
-          <p style={{ fontSize: 11, color: '#999', margin: '6px 0 0' }}>
+              {savingDefaultType ? 'Saving…' : defaultTypesDirty ? 'Save for later' : 'Saved'}
+            </button>
+            {savingDefaultType && <span style={{ fontSize: 11, color: '#999' }}>Saving…</span>}
+          </div>
+          <p style={{ fontSize: 11, color: '#999', margin: '10px 0 0' }}>
             Applies to any unit that doesn't have its own override set below.
           </p>
         </div>
@@ -353,7 +388,7 @@ export default function UnitsPage() {
                         title="Assessment type for this unit (overrides the default above)"
                         style={{ fontSize: 11, padding: '3px 6px', border: `1px solid ${C.border}`, borderRadius: 5, color: u.assessment_type ? '#333' : '#aaa' }}
                       >
-                        <option value="">Default ({ASSESSMENT_TYPES.find((t) => t.key === defaultAssessmentType)?.label})</option>
+                        <option value="">Default ({defaultAssessmentTypes.map((k) => ASSESSMENT_TYPES.find((t) => t.key === k)?.label).filter(Boolean).join(', ')})</option>
                         {ASSESSMENT_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
                       </select>
                     </div>
@@ -362,7 +397,7 @@ export default function UnitsPage() {
                       const endWeek = endWeekByUnit[`${subject}::${u.unit_name}`]
                       const status = !u.removed ? reminderStatus(currentWeek, endWeek) : null
                       if (!status) return null
-                      const effectiveType = ASSESSMENT_TYPES.find((t) => t.key === (u.assessment_type || defaultAssessmentType))
+                      const effectiveType = ASSESSMENT_TYPES.find((t) => t.key === (u.assessment_type || defaultAssessmentTypes[0]))
                       return (
                         <div style={{
                           marginTop: 8, marginLeft: 30, padding: '8px 12px', borderRadius: 6, fontSize: 12,
