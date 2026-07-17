@@ -38,6 +38,10 @@ export async function GET() {
 // as deferred ("saved for later", the default) vs. actionable right now.
 // Defaults to true so the reminder doesn't nag by default -- teachers
 // uncheck it when they actually want to act on a specific unit's reminder.
+//
+// year_rotation: for split (A/B year rotation) classes -- 'A', 'B', or null
+// (null = taught every year). Half the year's content is covered on each
+// rotation year so students never repeat what they already had.
 export async function POST(request) {
   const user = await getCurrentUser()
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
@@ -54,6 +58,7 @@ export async function POST(request) {
           assessment_type: u.assessment_type,
           la_category: u.la_category ?? null,
           saved_for_later: u.saved_for_later ?? true,
+          year_rotation: u.year_rotation ?? null,
           updated_at: new Date().toISOString(),
         })
       }
