@@ -17,6 +17,10 @@ export default function DayPlanPage() {
   const [swappingId, setSwappingId] = useState(null) // block id currently showing the activity quick-pick
   const [mode, setMode] = useState('board') // 'board' (desk display, default) | 'edit' (fine controls)
   const [now, setNow] = useState(new Date())
+  const [aiPanelBlockId, setAiPanelBlockId] = useState(null) // which board block has the AI panel open
+  const [aiTopic, setAiTopic] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiSuggestion, setAiSuggestion] = useState(null) // { title, content } pending Apply/Discard
 
   // Live Board is meant to stay open on a desk during the school day --
   // re-check the clock every 30s so the "current activity" highlight
@@ -94,6 +98,43 @@ export default function DayPlanPage() {
     persist(undefined, ttocNotes)
   }
 
+  function openAiPanel(id) {
+    setAiPanelBlockId(aiPanelBlockId === id ? null : id)
+    setAiTopic('')
+    setAiSuggestion(null)
+  }
+
+  async function runAiAction(block, action) {
+    if (action === 'custom' && !aiTopic.trim()) return
+    setAiLoading(true)
+    setAiSuggestion(null)
+    try {
+      const res = await fetch('/api/daily-plan/ai-modify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, subject: block.subject, length_minutes: block.length_minutes, topic: aiTopic }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed')
+      if (action === 'skip') {
+        applyAiSuggestion(block.id, data) // skip applies immediately, no review step
+      } else {
+        setAiSuggestion(data)
+      }
+    } catch (e) {
+      setAiSuggestion({ title: null, content: `Couldn't reach AI — try again. (${e.message})` })
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  function applyAiSuggestion(blockId, suggestion) {
+    const next = blocks.map((b) => (b.id === blockId ? { ...b, title: suggestion.title, subject: suggestion.title, content: suggestion.content } : b))
+    updateBlocks(next)
+    setAiPanelBlockId(null)
+    setAiSuggestion(null)
+    setAiTopic('')
+  }
+
   if (loading) return <div style={{ padding: 32, fontFamily: FONT_BODY }}>Loading…</div>
 
   return (
@@ -117,7 +158,7 @@ export default function DayPlanPage() {
         </div>
         <p style={{ color: '#666', fontSize: 13, marginTop: 0 }}>
           {mode === 'board'
-            ? "Today's Scope & Sequence, built from your Weekly Schedule and this week's Year Timeline units. Meant to stay open on your desk — the current activity highlights automatically."
+            ? "Today's Scope & Sequence, built from your Weekly Schedule and this week's Year Timeline units. Meant to stay open on your desk — the current activity highlights automatically. Click any block to skip it, re-engage a struggling class, or generate a fresh lesson on the fly."
             : "Starts from your Weekly Schedule template for this day, but edits here only affect this specific date. Click a block's title to edit its content, use +/- to resize, or click the subject to swap the activity."}
           {saving && <span style={{ color: '#999', marginLeft: 8 }}>Saving…</span>}
         </p>
@@ -129,15 +170,21 @@ export default function DayPlanPage() {
             )}
             {blocks.map((b) => {
               const isNow = b.id === activeId
+              const panelOpen = aiPanelBlockId === b.id
               return (
-                <div key={b.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 16, padding: isNow ? '18px 16px' : '12px 16px',
-                  marginBottom: 8, borderRadius: 8,
-                  background: isNow ? C.navy : (b.fixed ? '#f7f5f0' : '#fff'),
-                  border: `1px solid ${isNow ? C.navy : C.border}`,
-                  boxShadow: isNow ? '0 2px 10px rgba(28,53,87,0.25)' : 'none',
-                  transition: 'all 0.3s ease',
-                }}>
+                <div key={b.id}>
+                <div
+                  onClick={() => openAiPanel(b.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 16, padding: isNow ? '18px 16px' : '12px 16px',
+                    marginBottom: panelOpen ? 0 : 8, borderRadius: panelOpen ? '8px 8px 0 0' : 8,
+                    background: isNow ? C.navy : (b.fixed ? '#f7f5f0' : '#fff'),
+                    border: `1px solid ${isNow ? C.navy : (panelOpen ? C.gold : C.border)}`,
+                    boxShadow: isNow ? '0 2px 10px rgba(28,53,87,0.25)' : 'none',
+                    transition: 'all 0.3s ease', cursor: 'pointer',
+                  }}
+                  title="Click to make an AI-based change to this activity"
+                >
                   <div style={{ width: 90, fontSize: isNow ? 16 : 13, fontWeight: isNow ? 700 : 400, color: isNow ? '#fff' : '#888' }}>
                     {b.start_time}
                   </div>
@@ -150,6 +197,46 @@ export default function DayPlanPage() {
                     )}
                   </div>
                   <div style={{ fontSize: 12, color: isNow ? '#e3ddd0' : '#999' }}>{b.length_minutes}m</div>
+                </div>
+
+                {panelOpen && (
+                  <div style={{ border: `1px solid ${C.gold}`, borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 14, marginBottom: 8, background: '#fffdf7' }}>
+                    {!aiSuggestion && !aiLoading && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                        <button onClick={() => runAiAction(b, 'skip')} style={aiActionBtnStyle}>⏭️ Skip this lesson</button>
+                        <button onClick={() => runAiAction(b, 'engage')} style={aiActionBtnStyle}>⚡ Not landing — re-engage them</button>
+                        <div style={{ display: 'flex', gap: 6, flex: 1, minWidth: 220 }}>
+                          <input
+                            value={aiTopic} onChange={(e) => setAiTopic(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') runAiAction(b, 'custom') }}
+                            placeholder="Generate a lesson on…"
+                            style={{ flex: 1, padding: 8, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }}
+                          />
+                          <button onClick={() => runAiAction(b, 'custom')} disabled={!aiTopic.trim()} style={{ ...aiActionBtnStyle, opacity: aiTopic.trim() ? 1 : 0.5, cursor: aiTopic.trim() ? 'pointer' : 'not-allowed' }}>
+                            Generate
+                          </button>
+                        </div>
+                        <button onClick={() => setAiPanelBlockId(null)} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 12, marginLeft: 'auto' }}>Close</button>
+                      </div>
+                    )}
+                    {aiLoading && <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Generating…</p>}
+                    {aiSuggestion && (
+                      <div>
+                        {aiSuggestion.title && <div style={{ fontWeight: 700, color: C.navy, fontSize: 14 }}>{aiSuggestion.title}</div>}
+                        <p style={{ fontSize: 13, color: '#333', whiteSpace: 'pre-wrap', margin: '4px 0 10px' }}>{aiSuggestion.content}</p>
+                        {aiSuggestion.title && (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={() => applyAiSuggestion(b.id, aiSuggestion)} style={{ ...aiActionBtnStyle, background: C.green, color: '#fff', borderColor: C.green }}>✓ Apply to this block</button>
+                            <button onClick={() => { setAiSuggestion(null); setAiTopic('') }} style={aiActionBtnStyle}>Discard</button>
+                          </div>
+                        )}
+                        {!aiSuggestion.title && (
+                          <button onClick={() => { setAiSuggestion(null) }} style={aiActionBtnStyle}>Close</button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 </div>
               )
             })}
@@ -268,6 +355,7 @@ export default function DayPlanPage() {
 
 const resizeBtnStyle = { width: 22, height: 18, fontSize: 9, border: `1px solid #ccc`, background: '#fff', borderRadius: 3, cursor: 'pointer', lineHeight: 1, padding: 0 }
 const inputStyle = { display: 'block', width: '100%', marginTop: 4, padding: 6, border: '1px solid #e3ddd0', borderRadius: 6, fontSize: 12, boxSizing: 'border-box', fontFamily: 'inherit' }
+const aiActionBtnStyle = { padding: '8px 14px', background: '#fff', border: '1px solid #e3ddd0', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#1c3557' }
 
 function addMinutes(hhmm, mins) {
   const [h, m] = hhmm.split(':').map(Number)
