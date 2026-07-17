@@ -888,7 +888,7 @@ export default function UnitsPage() {
                     const colors = LA_CAT_COLORS[cat.key]
                     const startingView = laStartingView[cat.key] || 'activities' // teacher picks which view opens first: Activities, Content, or Curricular Competency
                     const catElaborations = elaborationsForCategory(cat.key)
-                    const grade = teacherGrades?.join?.('/') || null
+                    const grade = [...new Set(catUnits.flatMap((u) => u.grades || []))].join('/') || null
 
                     const isElabCovered = (elab) => catUnits.some((u) => u.source_elaboration_key === elab.key || u.unit_name.toLowerCase() === elab.label.toLowerCase())
                     const coveredElabs = catElaborations.filter(isElabCovered)
