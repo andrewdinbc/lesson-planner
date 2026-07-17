@@ -2,10 +2,12 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { getCurrentUser } from '@/lib/session'
 import { sbInsert } from '@/lib/supabase'
-import { buildQuizPrompt, buildWordlePrompt, generateMathRacerQuestions } from '@/lib/mini-games'
+import { buildQuizPrompt, buildWordlePrompt, buildQuestionSet, generateMathRacerQuestions } from '@/lib/mini-games'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
+
+const VALID_TYPES = ['quiz', 'wordle', 'math_racer', 'muncher', 'fact_dash']
 
 export async function POST(request) {
   const user = await getCurrentUser()
@@ -13,17 +15,24 @@ export async function POST(request) {
 
   try {
     const { gameType, subject, topic, grade } = await request.json()
-    if (!['quiz', 'wordle', 'math_racer'].includes(gameType)) {
-      return Response.json({ error: 'gameType must be quiz, wordle, or math_racer' }, { status: 400 })
+    if (!VALID_TYPES.includes(gameType)) {
+      return Response.json({ error: `gameType must be one of ${VALID_TYPES.join(', ')}` }, { status: 400 })
     }
 
     let gameData
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     if (gameType === 'quiz') {
-      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
       gameData = await buildQuizPrompt(anthropic, { subject, topic, grade })
     } else if (gameType === 'wordle') {
-      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
       gameData = await buildWordlePrompt(anthropic, { subject, topic, grade })
+    } else if (gameType === 'muncher') {
+      // more, shorter questions -- munching is a fast continuous loop, not
+      // a stop-and-read-carefully format
+      gameData = await buildQuestionSet(anthropic, { subject, topic, grade, numQuestions: 12, numChoices: 4 })
+    } else if (gameType === 'fact_dash') {
+      // exactly 3 choices to map onto 3 runner lanes; more questions since
+      // an endless runner burns through them fast as speed increases
+      gameData = await buildQuestionSet(anthropic, { subject, topic, grade, numQuestions: 15, numChoices: 3 })
     } else {
       // math_racer is procedural, not an AI call -- instant, zero latency,
       // which matters for a fast-paced racing game teachers want to fire
