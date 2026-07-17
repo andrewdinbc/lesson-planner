@@ -30,9 +30,12 @@ export async function GET() {
 // toggles, high_scrutiny opt-in for non-LA/Math subjects), and optionally
 // run the mismatch check against total instructional weeks.
 //
-// la_category: Language Arts sub-section override (reading/writing/oral) --
-// set when a teacher manually re-buckets a unit away from the heuristic
-// default computed client-side by lib/language-arts-categories.js.
+// la_category: legacy single-strand override, kept for back-compat.
+// la_categories: current cross-strand override (jsonb array of
+// reading/writing/oral) -- lets a unit legitimately appear under more than
+// one Language Arts section (Aj's "cross Language Arts tasks" request,
+// e.g. a Novel Study touching Reading, Writing, and Oral all at once).
+// Falls back to the heuristic in lib/language-arts-categories.js when unset.
 //
 // saved_for_later: whether the end-of-unit assessment reminder should show
 // as deferred ("saved for later", the default) vs. actionable right now.
@@ -57,10 +60,26 @@ export async function POST(request) {
           sort_order: u.sort_order,
           assessment_type: u.assessment_type,
           la_category: u.la_category ?? null,
+          la_categories: u.la_categories ?? null,
           saved_for_later: u.saved_for_later ?? true,
           year_rotation: u.year_rotation ?? null,
           updated_at: new Date().toISOString(),
         })
+      }
+    }
+
+    // Quick-add a unit from a Language Arts Elaboration idea (e.g. "Novel
+    // Study" -> Reading Writing) -- inserts a new row pre-tagged with the
+    // strands that elaboration covers, at equal priority to start.
+    if (body.addUnit) {
+      const { subject, unit_name, la_categories } = body.addUnit
+      if (subject && unit_name) {
+        const existingForSubject = await sbSelect('unit_priorities', `?user_id=eq.${user.id}&subject=eq.${encodeURIComponent(subject)}&select=sort_order&order=sort_order.desc&limit=1`)
+        const nextSortOrder = (existingForSubject[0]?.sort_order ?? -1) + 1
+        await sbInsert('unit_priorities', [{
+          user_id: user.id, subject, unit_name, priority: 1, sort_order: nextSortOrder,
+          la_categories: la_categories || null,
+        }])
       }
     }
 
