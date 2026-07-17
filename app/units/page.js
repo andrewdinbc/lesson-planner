@@ -68,6 +68,9 @@ export default function UnitsPage() {
   const [creativeBuildingKey, setCreativeBuildingKey] = useState(null) // elab.key currently running "AI: creative way to cover this"
   const [laStartingView, setLaStartingView] = useState({}) // LA category key -> 'activities' | 'content' | 'competency', default 'activities'
   const [openCoverage, setOpenCoverage] = useState({}) // unit key -> bool, "What does this cover?" toggle
+  const [occurrenceCounts, setOccurrenceCounts] = useState({}) // `${cat.key}::${elab.key}` -> number, how many instances to create at once (e.g. 3 Novel Studies this year)
+  const [manualApproach, setManualApproach] = useState({}) // `${cat.key}::${elab.key}` -> string, teacher's own way to cover a gap instead of AI inventing one
+  const [showManualInput, setShowManualInput] = useState({}) // `${cat.key}::${elab.key}` -> bool
   const [splitClassEnabled, setSplitClassEnabled] = useState(false) // A/B year rotation -- half the content is covered each year
   const [activeRotationYear, setActiveRotationYear] = useState('A')
   const [savingSplitClass, setSavingSplitClass] = useState(false)
@@ -294,59 +297,76 @@ export default function UnitsPage() {
   }
 
   // "+ Add as a Unit Frame" -- inserts an intentionally EMPTY placeholder
-  // unit pre-tagged with the strands the elaboration covers. No content is
-  // generated; the teacher fills it in later themselves.
-  async function addUnitFromElaboration(subject, elab) {
+  // unit tagged with the SPECIFIC strand it's being added from (not all
+  // strands the idea generally covers) -- per Aj's 2026-07-17 refinement,
+  // adding "Novel Study" from the Reading tab creates a Reading-specific
+  // unit; adding it again from the Oral tab creates a separate,
+  // independently-tracked Oral-specific unit. `count` (from the
+  // occurrence stepper) inserts that many numbered instances at once
+  // (e.g. "Novel Study #1" / "#2" / "#3" for a teacher who runs 3 a year).
+  async function addUnitFromElaboration(subject, elab, categoryKey, count = 1) {
     setAddingElabKey(elab.key)
     try {
-      const res = await fetch('/api/unit-priorities', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ addUnit: { subject, unit_name: elab.label, la_categories: elab.covers, source_elaboration_key: elab.key } }),
-      })
-      const data = await res.json()
-      if (res.ok) setUnits(data.units || units)
+      for (let i = 1; i <= count; i++) {
+        const unit_name = count > 1 ? `${elab.label} #${i}` : elab.label
+        const res = await fetch('/api/unit-priorities', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ addUnit: { subject, unit_name, la_categories: [categoryKey], source_elaboration_key: elab.key } }),
+        })
+        const data = await res.json()
+        if (res.ok) setUnits(data.units || units)
+      }
     } finally {
       setAddingElabKey(null)
     }
   }
 
-  // "AI build me this unit" -- generates real content for the elaboration
-  // idea and inserts it as a fully-fleshed-out unit (not an empty frame).
-  async function aiBuildUnit(subject, elab, grade) {
+  // "AI build me this unit" -- generates real content tailored to the ONE
+  // strand it's being built for (see app/api/units/ai-build's strand
+  // framing), and inserts it as a fully-fleshed-out unit. `count` inserts
+  // that many separately-generated instances (each gets its own AI call
+  // so e.g. 3 Novel Studies aren't identical copies).
+  async function aiBuildUnit(subject, elab, categoryKey, categoryLabel, grade, count = 1) {
     setAiBuildingKey(elab.key)
     try {
-      const genRes = await fetch('/api/units/ai-build', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject, unitLabel: elab.label, covers: elab.covers, grade }),
-      })
-      const gen = await genRes.json()
-      if (!genRes.ok) throw new Error(gen.error)
-      const res = await fetch('/api/unit-priorities', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          addUnit: {
-            subject, unit_name: gen.unit_name || elab.label, la_categories: elab.covers,
-            content_summary: gen.content_summary, curricular_competency: gen.curricular_competency,
-            source_elaboration_key: elab.key,
-          },
-        }),
-      })
-      const data = await res.json()
-      if (res.ok) setUnits(data.units || units)
+      for (let i = 1; i <= count; i++) {
+        const genRes = await fetch('/api/units/ai-build', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subject, unitLabel: elab.label, covers: elab.covers, category: categoryLabel, grade }),
+        })
+        const gen = await genRes.json()
+        if (!genRes.ok) throw new Error(gen.error)
+        const baseName = gen.unit_name || elab.label
+        const unit_name = count > 1 ? `${baseName} #${i}` : baseName
+        const res = await fetch('/api/unit-priorities', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            addUnit: {
+              subject, unit_name, la_categories: [categoryKey],
+              content_summary: gen.content_summary, curricular_competency: gen.curricular_competency,
+              source_elaboration_key: elab.key,
+            },
+          }),
+        })
+        const data = await res.json()
+        if (res.ok) setUnits(data.units || units)
+      }
     } catch { /* transient AI/network failure -- teacher can retry */ } finally {
       setAiBuildingKey(null)
     }
   }
 
-  // "AI: creative way to cover this" -- for an elaboration idea that has NO
-  // unit yet (a coverage gap), invents a fresh, non-obvious approach that
-  // still hits the same strands, and inserts it as a new unit.
-  async function aiCoverGapCreatively(subject, elab, grade) {
+  // "AI: creative way to cover this" -- for an elaboration idea with NO
+  // unit yet in this specific strand (a coverage gap), invents a fresh,
+  // non-obvious approach tailored to that strand, and inserts it as a new
+  // unit. If the teacher typed their own approach instead (manualApproach),
+  // AI builds THAT out rather than inventing something different.
+  async function aiCoverGapCreatively(subject, elab, categoryKey, categoryLabel, grade, manualApproach = '') {
     setCreativeBuildingKey(elab.key)
     try {
       const genRes = await fetch('/api/units/ai-build', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject, unitLabel: elab.label, covers: elab.covers, grade, creative: true }),
+        body: JSON.stringify({ subject, unitLabel: elab.label, covers: elab.covers, category: categoryLabel, grade, creative: true, manualApproach }),
       })
       const gen = await genRes.json()
       if (!genRes.ok) throw new Error(gen.error)
@@ -354,7 +374,7 @@ export default function UnitsPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           addUnit: {
-            subject, unit_name: gen.unit_name || elab.label, la_categories: elab.covers,
+            subject, unit_name: gen.unit_name || elab.label, la_categories: [categoryKey],
             content_summary: gen.content_summary, curricular_competency: gen.curricular_competency,
             source_elaboration_key: elab.key,
           },
@@ -896,6 +916,10 @@ export default function UnitsPage() {
 
                     const elabCard = (elab, isGap) => {
                       const coverageOpen = openCoverage[`elab::${elab.key}`]
+                      const countKey = `${cat.key}::${elab.key}`
+                      const count = occurrenceCounts[countKey] || 1
+                      const manualOpen = showManualInput[countKey]
+                      const manualText = manualApproach[countKey] || ''
                       return (
                         <div key={elab.key} style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 6, padding: '8px 10px' }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
@@ -916,34 +940,71 @@ export default function UnitsPage() {
                                   <p style={{ fontSize: 11, color: '#666', margin: '3px 0 0' }}>{elab.description}</p>
                                 </div>
                               )}
+                              {isGap && (
+                                <div style={{ marginTop: 6 }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowManualInput((prev) => ({ ...prev, [countKey]: !prev[countKey] }))}
+                                    style={{ background: 'none', border: 'none', color: colors.text, fontSize: 10, fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                                  >
+                                    {manualOpen ? '✕ Cancel' : '✏️ Or type your own way to cover this'}
+                                  </button>
+                                  {manualOpen && (
+                                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                                      <input
+                                        value={manualText}
+                                        onChange={(e) => setManualApproach((prev) => ({ ...prev, [countKey]: e.target.value }))}
+                                        placeholder={`e.g. "book club with student-led discussion questions"`}
+                                        style={{ flex: 1, fontSize: 11, padding: '5px 8px', border: `1px solid ${colors.border}`, borderRadius: 5 }}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'stretch' }}>
+                              {!isGap && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }} title="How many times this year -- e.g. 3 Novel Studies">
+                                  <span style={{ fontSize: 10, color: '#999' }}># this year</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setOccurrenceCounts((prev) => ({ ...prev, [countKey]: Math.max(1, count - 1) }))}
+                                    style={{ width: 20, height: 20, lineHeight: '18px', padding: 0, borderRadius: 4, border: `1px solid ${colors.border}`, background: '#fff', color: colors.text, fontSize: 12, cursor: 'pointer' }}
+                                  >−</button>
+                                  <span style={{ fontSize: 12, fontWeight: 700, color: colors.text, minWidth: 14, textAlign: 'center' }}>{count}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setOccurrenceCounts((prev) => ({ ...prev, [countKey]: Math.min(12, count + 1) }))}
+                                    style={{ width: 20, height: 20, lineHeight: '18px', padding: 0, borderRadius: 4, border: `1px solid ${colors.border}`, background: '#fff', color: colors.text, fontSize: 12, cursor: 'pointer' }}
+                                  >+</button>
+                                </div>
+                              )}
                               {isGap ? (
                                 <button
-                                  onClick={() => aiCoverGapCreatively(subject, elab, grade)}
+                                  onClick={() => aiCoverGapCreatively(subject, elab, cat.key, cat.label, grade, manualText)}
                                   disabled={creativeBuildingKey === elab.key}
-                                  title="Not yet covered -- have AI invent a creative, non-obvious way to cover it"
+                                  title={manualText ? 'Build out the approach you typed' : `Not yet covered in ${cat.label} -- have AI invent a creative, non-obvious way to cover it`}
                                   style={{ padding: '4px 10px', background: '#7a3c8a', color: '#fff', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
                                 >
-                                  {creativeBuildingKey === elab.key ? 'Inventing…' : '✨ AI: creative way to cover this'}
+                                  {creativeBuildingKey === elab.key ? 'Inventing…' : manualText ? '✨ Build my way' : '✨ AI: creative way to cover this'}
                                 </button>
                               ) : (
                                 <>
                                   <button
-                                    onClick={() => addUnitFromElaboration(subject, elab)}
+                                    onClick={() => addUnitFromElaboration(subject, elab, cat.key, count)}
                                     disabled={addingElabKey === elab.key}
-                                    title="Insert an empty placeholder unit -- fill in the details yourself later"
+                                    title={`Insert ${count > 1 ? count + ' empty placeholder units' : 'an empty placeholder unit'} for ${cat.label} -- fill in the details yourself later`}
                                     style={{ padding: '4px 10px', background: colors.text, color: '#fff', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
                                   >
-                                    {addingElabKey === elab.key ? 'Adding…' : '+ Add as a Unit Frame (empty, add info later)'}
+                                    {addingElabKey === elab.key ? 'Adding…' : `+ Add as a Unit Frame${count > 1 ? ` (×${count})` : ''} (empty, add info later)`}
                                   </button>
                                   <button
-                                    onClick={() => aiBuildUnit(subject, elab, grade)}
+                                    onClick={() => aiBuildUnit(subject, elab, cat.key, cat.label, grade, count)}
                                     disabled={aiBuildingKey === elab.key}
-                                    title="Have AI generate real content and competency for this unit right now"
+                                    title={`Have AI generate ${count > 1 ? count + ' separate' : 'real'} unit(s) for ${cat.label} right now`}
                                     style={{ padding: '4px 10px', background: C.gold, color: '#fff', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
                                   >
-                                    {aiBuildingKey === elab.key ? 'Building…' : '✨ AI build me this unit'}
+                                    {aiBuildingKey === elab.key ? 'Building…' : `✨ AI build me this unit${count > 1 ? ` (×${count})` : ''}`}
                                   </button>
                                 </>
                               )}
