@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { COLORS as C, FONT_BODY } from '@/lib/theme'
-import { resizeBlock, recomputeBlockTimes, QUICK_ACTIVITIES } from '@/lib/daily-plan'
+import { resizeBlock, recomputeBlockTimes, QUICK_ACTIVITIES, currentBlockId } from '@/lib/daily-plan'
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10)
@@ -15,6 +15,17 @@ export default function DayPlanPage() {
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState(null) // block id currently in inline-edit mode
   const [swappingId, setSwappingId] = useState(null) // block id currently showing the activity quick-pick
+  const [mode, setMode] = useState('board') // 'board' (desk display, default) | 'edit' (fine controls)
+  const [now, setNow] = useState(new Date())
+
+  // Live Board is meant to stay open on a desk during the school day --
+  // re-check the clock every 30s so the "current activity" highlight
+  // moves on its own without a page refresh.
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 30000)
+    return () => clearInterval(interval)
+  }, [])
+  const activeId = date === todayStr() ? currentBlockId(blocks, now.toTimeString().slice(0, 5)) : null
 
   const load = useCallback((d) => {
     setLoading(true)
@@ -91,14 +102,62 @@ export default function DayPlanPage() {
         <a href="/dashboard" style={{ color: C.navy, fontSize: 13 }}>← Dashboard</a>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '8px 0 4px' }}>
           <h1 style={{ color: C.navy, fontSize: 28, margin: 0 }}>Daily Planner</h1>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-            style={{ padding: 8, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }} />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 6, overflow: 'hidden' }}>
+              <button onClick={() => setMode('board')} style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: mode === 'board' ? C.navy : '#fff', color: mode === 'board' ? '#fff' : C.navy }}>
+                📋 Board
+              </button>
+              <button onClick={() => setMode('edit')} style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: mode === 'edit' ? C.navy : '#fff', color: mode === 'edit' ? '#fff' : C.navy }}>
+                ✏️ Edit
+              </button>
+            </div>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+              style={{ padding: 8, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }} />
+          </div>
         </div>
         <p style={{ color: '#666', fontSize: 13, marginTop: 0 }}>
-          Starts from your Weekly Schedule template for this day, but edits here only affect this specific date. Click a block's title to edit its content, use +/- to resize, or click the subject to swap the activity.
+          {mode === 'board'
+            ? "Today's Scope & Sequence, built from your Weekly Schedule and this week's Year Timeline units. Meant to stay open on your desk — the current activity highlights automatically."
+            : "Starts from your Weekly Schedule template for this day, but edits here only affect this specific date. Click a block's title to edit its content, use +/- to resize, or click the subject to swap the activity."}
           {saving && <span style={{ color: '#999', marginLeft: 8 }}>Saving…</span>}
         </p>
 
+        {mode === 'board' && (
+          <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 20, marginBottom: 20 }}>
+            {blocks.length === 0 && (
+              <p style={{ fontSize: 13, color: '#888' }}>No blocks yet for this day — switch to Edit to add some, or set up your <a href="/week" style={{ color: C.navy }}>Weekly Schedule</a> template first.</p>
+            )}
+            {blocks.map((b) => {
+              const isNow = b.id === activeId
+              return (
+                <div key={b.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 16, padding: isNow ? '18px 16px' : '12px 16px',
+                  marginBottom: 8, borderRadius: 8,
+                  background: isNow ? C.navy : (b.fixed ? '#f7f5f0' : '#fff'),
+                  border: `1px solid ${isNow ? C.navy : C.border}`,
+                  boxShadow: isNow ? '0 2px 10px rgba(28,53,87,0.25)' : 'none',
+                  transition: 'all 0.3s ease',
+                }}>
+                  <div style={{ width: 90, fontSize: isNow ? 16 : 13, fontWeight: isNow ? 700 : 400, color: isNow ? '#fff' : '#888' }}>
+                    {b.start_time}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: isNow ? 22 : 16, fontWeight: 700, color: isNow ? '#fff' : C.navy }}>
+                      {isNow && '▶ '}{b.title || b.subject}
+                    </div>
+                    {b.content && (
+                      <div style={{ fontSize: isNow ? 15 : 13, color: isNow ? '#e3ddd0' : '#666', marginTop: 2 }}>{b.content}</div>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: isNow ? '#e3ddd0' : '#999' }}>{b.length_minutes}m</div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {mode === 'edit' && (
+        <>
         <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 16, marginBottom: 20 }}>
           {blocks.length === 0 && (
             <p style={{ fontSize: 13, color: '#888' }}>No blocks yet for this day — add one below, or set up your <a href="/week" style={{ color: C.navy }}>Weekly Schedule</a> template first.</p>
@@ -200,6 +259,8 @@ export default function DayPlanPage() {
         }}>
           🖨️ Generate Printable TTOC Plan
         </a>
+        </>
+        )}
       </div>
     </div>
   )

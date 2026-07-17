@@ -1,7 +1,8 @@
 // app/api/daily-plan/route.js
 import { sbSelect, sbInsert, sbUpdate } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/session'
-import { seedDayFromWeeklyTemplate } from '@/lib/daily-plan'
+import { seedDayFromWeeklyTemplate, activeUnitForSubjectThisWeek } from '@/lib/daily-plan'
+import { currentInstructionalWeek } from '@/lib/assessment-types'
 
 // GET ?date=YYYY-MM-DD: fetch this teacher's plan for a specific date,
 // seeding it from the Weekly Schedule template's matching day-of-week on
@@ -20,7 +21,24 @@ export async function GET(request) {
 
     if (!plan) {
       const [weekly] = await sbSelect('weekly_schedules', `?user_id=eq.${user.id}&select=grid&order=updated_at.desc&limit=1`)
-      const blocks = weekly ? seedDayFromWeeklyTemplate(weekly.grid, date) : []
+      let blocks = weekly ? seedDayFromWeeklyTemplate(weekly.grid, date) : []
+
+      // Pull in what the Year Timeline says is actually happening this
+      // week per subject, so a block starts already labeled with real
+      // content ("Fractions") instead of blank -- the Day <- Week <- Year
+      // connective tissue, not just a bare time grid.
+      const [inv] = await sbSelect('teacher_inventories', `?user_id=eq.${user.id}&select=school_calendar_summary&limit=1`)
+      const openingDate = inv?.school_calendar_summary?.schoolOpeningDate
+      const weekNumber = openingDate ? currentInstructionalWeek(openingDate) : null
+      if (weekNumber && blocks.length) {
+        const timelineBlocks = await sbSelect('timeline_units', `?user_id=eq.${user.id}&select=*`)
+        blocks = blocks.map((b) => {
+          if (b.fixed || b.content) return b
+          const unit = activeUnitForSubjectThisWeek(timelineBlocks, b.subject, weekNumber)
+          return unit ? { ...b, content: unit.unit_name } : b
+        })
+      }
+
       const [inserted] = await sbInsert('daily_plans', [{ user_id: user.id, plan_date: date, blocks, ttoc_notes: {} }])
       plan = inserted
     }
