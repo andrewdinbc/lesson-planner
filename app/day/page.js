@@ -118,9 +118,45 @@ export default function DayPlanPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
       const playUrl = `${window.location.origin}/play/${data.game.id}`
-      setGameResult({ playUrl, gameType })
+      setGameResult({ playUrl, gameType, gameId: data.game.id })
     } catch (e) {
       setGameResult({ error: e.message })
+    } finally {
+      setGameLoading(false)
+    }
+  }
+
+  async function generateAndStartLive(block) {
+    setGameLoading(true)
+    setGameResult(null)
+    try {
+      const res = await fetch('/api/mini-games', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameType: 'quiz', subject: block.subject, topic: aiTopic, grade: '' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed')
+      await startLiveSession(data.game.id)
+      setAiPanelBlockId(null)
+    } catch (e) {
+      setGameResult({ error: e.message })
+    } finally {
+      setGameLoading(false)
+    }
+  }
+
+  async function startLiveSession(gameId) {
+    setGameLoading(true)
+    try {
+      const res = await fetch('/api/game-sessions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ miniGameId: gameId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed')
+      window.open(`/host/${data.session.id}`, '_blank')
+    } catch (e) {
+      setGameResult((prev) => ({ ...prev, liveError: e.message }))
     } finally {
       setGameLoading(false)
     }
@@ -241,6 +277,7 @@ export default function DayPlanPage() {
                         <div style={{ width: '100%', borderTop: `1px solid ${C.border}`, marginTop: 4, paddingTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
                           <span style={{ fontSize: 11, color: '#888' }}>Or make it a game (QR code, students play on their own devices):</span>
                           <button onClick={() => generateGame(b, 'quiz')} style={aiActionBtnStyle}>🎮 Quiz Game</button>
+                          <button onClick={() => generateAndStartLive(b)} style={{ ...aiActionBtnStyle, background: '#4a2a6a', color: '#fff', borderColor: '#4a2a6a' }}>🏆 Live Event</button>
                           <button onClick={() => generateGame(b, 'wordle')} style={aiActionBtnStyle}>🔤 Word Guess</button>
                         </div>
                         <button onClick={() => setAiPanelBlockId(null)} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 12, marginLeft: 'auto' }}>Close</button>
@@ -256,6 +293,15 @@ export default function DayPlanPage() {
                           alt="Scan to play" style={{ borderRadius: 8, border: `1px solid ${C.border}` }}
                         />
                         <p style={{ fontSize: 11, color: '#888', marginTop: 8, wordBreak: 'break-all' }}>{gameResult.playUrl}</p>
+                        {gameResult.gameType === 'quiz' && (
+                          <div style={{ marginTop: 4, marginBottom: 4 }}>
+                            <button onClick={() => startLiveSession(gameResult.gameId)} disabled={gameLoading} style={{ ...aiActionBtnStyle, background: '#4a2a6a', color: '#fff', borderColor: '#4a2a6a' }}>
+                              🏆 Start Shared Live Event Instead
+                            </button>
+                            <p style={{ fontSize: 10, color: '#999', marginTop: 4 }}>Opens a host screen in a new tab with a join code + live leaderboard — everyone answers together in real time.</p>
+                            {gameResult.liveError && <p style={{ fontSize: 11, color: '#a33' }}>{gameResult.liveError}</p>}
+                          </div>
+                        )}
                         <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 8 }}>
                           <button onClick={() => { setGameResult(null); setAiTopic('') }} style={aiActionBtnStyle}>Close</button>
                           <button onClick={() => setAiPanelBlockId(null)} style={{ ...aiActionBtnStyle, background: C.green, color: '#fff', borderColor: C.green }}>Done — back to board</button>
