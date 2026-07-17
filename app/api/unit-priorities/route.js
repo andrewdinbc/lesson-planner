@@ -71,14 +71,25 @@ export async function POST(request) {
     // Quick-add a unit from a Language Arts Elaboration idea (e.g. "Novel
     // Study" -> Reading Writing) -- inserts a new row pre-tagged with the
     // strands that elaboration covers, at equal priority to start.
+    // - Plain "Add as a Unit Frame": content_summary/curricular_competency
+    //   stay empty -- an intentional placeholder to fill in later.
+    // - After "AI build me this unit" / "AI: creative way to cover this",
+    //   the client has already generated content_summary and
+    //   curricular_competency and passes them along here to save in the
+    //   same insert, plus source_elaboration_key linking back to the idea
+    //   this unit was built from (so the teacher can always trace what
+    //   content it's supposed to cover).
     if (body.addUnit) {
-      const { subject, unit_name, la_categories } = body.addUnit
+      const { subject, unit_name, la_categories, content_summary, curricular_competency, source_elaboration_key } = body.addUnit
       if (subject && unit_name) {
         const existingForSubject = await sbSelect('unit_priorities', `?user_id=eq.${user.id}&subject=eq.${encodeURIComponent(subject)}&select=sort_order&order=sort_order.desc&limit=1`)
         const nextSortOrder = (existingForSubject[0]?.sort_order ?? -1) + 1
         await sbInsert('unit_priorities', [{
           user_id: user.id, subject, unit_name, priority: 1, sort_order: nextSortOrder,
           la_categories: la_categories || null,
+          content_summary: content_summary || null,
+          curricular_competency: curricular_competency || null,
+          source_elaboration_key: source_elaboration_key || null,
         }])
       }
     }
