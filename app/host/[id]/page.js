@@ -58,7 +58,26 @@ export default function HostSessionPage({ params }) {
 
   return (
     <Shell>
-      {data.status === 'lobby' && (
+      {data.status === 'lobby' && data.isDuel && (
+        <div style={{ textAlign: 'center' }}>
+          <h1 style={{ fontSize: 26, marginBottom: 4 }}>⚔️ 1v1 Duel</h1>
+          <p style={{ opacity: 0.85, marginBottom: 16 }}>Starts automatically the instant both players join.</p>
+          <div style={{ fontSize: 52, fontWeight: 900, letterSpacing: 6, marginBottom: 20 }}>{joinCode}</div>
+          {joinUrl && (
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(joinUrl)}`}
+              alt="Scan to join" style={{ borderRadius: 8, marginBottom: 20 }}
+            />
+          )}
+          <div style={{ display: 'flex', gap: 20, justifyContent: 'center' }}>
+            <DuelSlot filled={data.playerCount >= 1} label="Player 1" />
+            <div style={{ fontSize: 32, alignSelf: 'center', opacity: 0.6 }}>VS</div>
+            <DuelSlot filled={data.playerCount >= 2} label="Player 2" />
+          </div>
+        </div>
+      )}
+
+      {data.status === 'lobby' && !data.isDuel && (
         <div style={{ textAlign: 'center' }}>
           <h1 style={{ fontSize: 22, opacity: 0.85, marginBottom: 4 }}>Join at</h1>
           <div style={{ fontSize: 20, marginBottom: 16 }}>{typeof window !== 'undefined' ? window.location.host : ''}/join</div>
@@ -99,7 +118,7 @@ export default function HostSessionPage({ params }) {
           )}
           {data.status === 'question_reveal' && (
             <>
-              <Leaderboard players={data.leaderboard} compact />
+              {data.isDuel ? <DuelScoreBars players={data.leaderboard} /> : <Leaderboard players={data.leaderboard} compact />}
               <button onClick={() => control('next')} disabled={acting} style={{ ...bigBtnStyle, marginTop: 16 }}>
                 {data.currentQuestionIndex + 1 >= data.totalQuestions ? '🏁 Show Final Results' : 'Next Question →'}
               </button>
@@ -110,11 +129,57 @@ export default function HostSessionPage({ params }) {
 
       {data.status === 'finished' && (
         <div style={{ textAlign: 'center' }}>
-          <h1 style={{ fontSize: 32, marginBottom: 20 }}>🏆 Final Results</h1>
-          <Leaderboard players={data.leaderboard} />
+          {data.isDuel ? <DuelResult players={data.leaderboard} /> : (
+            <>
+              <h1 style={{ fontSize: 32, marginBottom: 20 }}>🏆 Final Results</h1>
+              <Leaderboard players={data.leaderboard} />
+            </>
+          )}
         </div>
       )}
     </Shell>
+  )
+}
+
+function DuelSlot({ filled, label }) {
+  return (
+    <div style={{
+      width: 120, height: 120, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: filled ? '#1a7a3e' : 'rgba(255,255,255,0.1)', border: `2px dashed ${filled ? 'transparent' : 'rgba(255,255,255,0.3)'}`,
+      fontSize: 15, fontWeight: 600,
+    }}>
+      {filled ? '✅ Ready!' : label}
+    </div>
+  )
+}
+
+function DuelScoreBars({ players }) {
+  const [a, b] = players
+  const max = Math.max(a?.score || 0, b?.score || 0, 1)
+  return (
+    <div style={{ maxWidth: 420, margin: '0 auto' }}>
+      {[a, b].filter(Boolean).map((p) => (
+        <div key={p.id} style={{ marginBottom: 10, textAlign: 'left' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 2 }}>
+            <span>{p.nickname}</span><span style={{ fontWeight: 700 }}>{p.score}</span>
+          </div>
+          <div style={{ height: 14, borderRadius: 7, background: 'rgba(255,255,255,0.15)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${(p.score / max) * 100}%`, background: '#b57c2a', transition: 'width 0.4s' }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function DuelResult({ players }) {
+  const [a, b] = [...players].sort((x, y) => y.score - x.score)
+  const tie = a?.score === b?.score
+  return (
+    <div>
+      <h1 style={{ fontSize: 34, marginBottom: 16 }}>{tie ? "🤝 It's a Tie!" : `🏆 ${a?.nickname} Wins!`}</h1>
+      <DuelScoreBars players={players} />
+    </div>
   )
 }
 

@@ -171,6 +171,31 @@ export default function DayPlanPage() {
     }
   }
 
+  async function generateAndStartDuel(block) {
+    setGameLoading(true)
+    setGameResult(null)
+    try {
+      const res = await fetch('/api/mini-games', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameType: 'quiz', subject: block.subject, topic: aiTopic, grade }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed')
+      const sessRes = await fetch('/api/game-sessions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ miniGameId: data.game.id, isDuel: true }),
+      })
+      const sessData = await sessRes.json()
+      if (!sessRes.ok) throw new Error(sessData.error || 'Failed')
+      window.open(`/host/${sessData.session.id}`, '_blank')
+      setAiPanelBlockId(null)
+    } catch (e) {
+      setGameResult({ error: e.message })
+    } finally {
+      setGameLoading(false)
+    }
+  }
+
   async function startLiveSession(gameId) {
     setGameLoading(true)
     try {
@@ -304,6 +329,7 @@ export default function DayPlanPage() {
                           <span style={{ fontSize: 11, color: '#888' }}>Or make it a game (QR code, students play on their own devices):</span>
                           <button onClick={() => generateGame(b, 'quiz')} style={aiActionBtnStyle}>🎮 Quiz Game</button>
                           <button onClick={() => generateAndStartLive(b)} style={{ ...aiActionBtnStyle, background: '#4a2a6a', color: '#fff', borderColor: '#4a2a6a' }}>🏆 Live Event</button>
+                          <button onClick={() => generateAndStartDuel(b)} style={{ ...aiActionBtnStyle, background: '#1a7a3e', color: '#fff', borderColor: '#1a7a3e' }}>⚔️ 1v1 Duel</button>
                           <button onClick={() => generateGame(b, 'wordle')} style={aiActionBtnStyle}>🔤 Word Guess</button>
                           <button onClick={() => generateGame(b, 'math_racer')} style={aiActionBtnStyle}>🏎️ Math Racer</button>
                           <button onClick={() => generateGame(b, 'muncher')} style={aiActionBtnStyle}>🟡 Muncher</button>

@@ -7,7 +7,7 @@ export async function POST(request) {
   const user = await getCurrentUser()
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
   try {
-    const { miniGameId } = await request.json()
+    const { miniGameId, isDuel } = await request.json()
     if (!miniGameId) return Response.json({ error: 'miniGameId is required' }, { status: 400 })
 
     const [game] = await sbSelect('mini_games', `?id=eq.${miniGameId}&select=id,game_type&limit=1`)
@@ -19,7 +19,7 @@ export async function POST(request) {
     for (let attempt = 0; attempt < 4 && !session; attempt++) {
       try {
         const [inserted] = await sbInsert('game_sessions', [{
-          user_id: user.id, mini_game_id: miniGameId, join_code: generateJoinCode(), status: 'lobby', current_question_index: 0,
+          user_id: user.id, mini_game_id: miniGameId, join_code: generateJoinCode(), status: 'lobby', current_question_index: 0, is_duel: !!isDuel,
         }])
         session = inserted
       } catch (e) {
