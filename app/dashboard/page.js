@@ -189,6 +189,11 @@ export default function Dashboard() {
             tooltip="Add sites and materials you like so the AI can reference them" />
         </div>
 
+        <div style={{ display: 'flex', gap: 16, marginBottom: 40, fontSize: 13 }}>
+          <a href="/timeline" style={{ color: C.navy, textDecoration: 'none', fontWeight: 600 }}>🎬 Year Timeline</a>
+          <a href="/print/scope-sequence" style={{ color: C.navy, textDecoration: 'none', fontWeight: 600 }}>🖨️ Printable Scope &amp; Sequence</a>
+        </div>
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h2 style={{ fontSize: 22, color: C.navy, margin: 0 }}>Micro-Units</h2>
           <Tooltip text="Create a new micro-unit from scratch" position="left">
@@ -259,6 +264,7 @@ export default function Dashboard() {
     </div>
   )
 }
+
 
 
 
