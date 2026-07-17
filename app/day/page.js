@@ -152,6 +152,25 @@ export default function DayPlanPage() {
     }
   }
 
+  async function startDrawSession(block) {
+    setGameLoading(true)
+    setGameResult(null)
+    try {
+      const res = await fetch('/api/draw-sessions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject: block.subject, topic: aiTopic, grade }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed')
+      window.open(`/host-draw/${data.session.id}`, '_blank')
+      setAiPanelBlockId(null)
+    } catch (e) {
+      setGameResult({ error: e.message })
+    } finally {
+      setGameLoading(false)
+    }
+  }
+
   async function startLiveSession(gameId) {
     setGameLoading(true)
     try {
@@ -291,6 +310,7 @@ export default function DayPlanPage() {
                           <button onClick={() => generateGame(b, 'fact_dash')} style={aiActionBtnStyle}>🏃 Fact Dash</button>
                           <button onClick={() => generateGame(b, 'tycoon')} style={aiActionBtnStyle}>🏪 Trivia Tycoon</button>
                           <button onClick={() => generateGame(b, 'merge')} style={aiActionBtnStyle}>🔢 Merge</button>
+                          <button onClick={() => startDrawSession(b)} style={{ ...aiActionBtnStyle, background: '#c9698a', color: '#fff', borderColor: '#c9698a' }}>🎨 Draw &amp; Guess</button>
                         </div>
                         <button onClick={() => setAiPanelBlockId(null)} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 12, marginLeft: 'auto' }}>Close</button>
                       </div>
