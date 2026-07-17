@@ -42,6 +42,7 @@ export async function POST(request) {
           high_scrutiny: u.high_scrutiny,
           removed: u.removed,
           sort_order: u.sort_order,
+          assessment_type: u.assessment_type,
           updated_at: new Date().toISOString(),
         })
       }

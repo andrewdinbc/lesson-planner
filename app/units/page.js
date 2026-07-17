@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 
 import { COLORS as C, FONT_BODY } from '@/lib/theme'
 import { reorderWithinSubject } from '@/lib/unit-priorities'
+import { ASSESSMENT_TYPES, currentInstructionalWeek, reminderStatus } from '@/lib/assessment-types'
 const ALWAYS_HIGH_SCRUTINY = ['Language Arts', 'Mathematics']
 
 export default function UnitsPage() {
@@ -24,6 +25,23 @@ export default function UnitsPage() {
   const [feedbackText, setFeedbackText] = useState('')
   const [feedbackStatus, setFeedbackStatus] = useState('idle') // 'idle' | 'sending' | 'sent' | 'error'
   const [dragInfo, setDragInfo] = useState(null) // { subject, fromIndex }
+  const [defaultAssessmentType, setDefaultAssessmentType] = useState('quiz')
+  const [savingDefaultType, setSavingDefaultType] = useState(false)
+  const [currentWeek, setCurrentWeek] = useState(null)
+  const [endWeekByUnit, setEndWeekByUnit] = useState({}) // `${subject}::${unit_name}` -> end_week, from the Timeline
+
+  async function saveDefaultAssessmentType(type) {
+    setDefaultAssessmentType(type)
+    setSavingDefaultType(true)
+    try {
+      await fetch('/api/assessment-settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ default_assessment_type: type }),
+      })
+    } finally {
+      setSavingDefaultType(false)
+    }
+  }
 
   function handleDrop(subject, toIndex) {
     if (!dragInfo || dragInfo.subject !== subject) { setDragInfo(null); return }
@@ -87,6 +105,8 @@ export default function UnitsPage() {
           setWeeksAvailable(Math.round(days / 5))
           setWeeksSource('calendar')
         }
+        const openingDate = d.inventory?.school_calendar_summary?.schoolOpeningDate
+        if (openingDate) setCurrentWeek(currentInstructionalWeek(openingDate))
       })
       .catch(() => {})
 
@@ -98,6 +118,23 @@ export default function UnitsPage() {
       .then((r) => r.json())
       .then((d) => setClassSetupStatus(d.setup ? 'present' : 'missing'))
       .catch(() => setClassSetupStatus('missing'))
+
+    fetch('/api/assessment-settings')
+      .then((r) => r.json())
+      .then((d) => setDefaultAssessmentType(d.default_assessment_type || 'quiz'))
+      .catch(() => {})
+
+    // Timeline end_week per unit powers the "unit ending soon" reminder --
+    // reuses the same seeded/edited data the Year Timeline page shows, so
+    // the two stay consistent rather than tracking dates twice.
+    fetch('/api/timeline')
+      .then((r) => r.json())
+      .then((d) => {
+        const map = {}
+        for (const b of d.blocks || []) map[`${b.subject}::${b.unit_name}`] = b.end_week
+        setEndWeekByUnit(map)
+      })
+      .catch(() => {})
   }, [])
 
   const bySubject = units.reduce((acc, u) => {
@@ -114,7 +151,7 @@ export default function UnitsPage() {
 
   async function save() {
     setSaving(true)
-    const updates = units.map((u) => ({ subject: u.subject, unit_name: u.unit_name, priority: u.priority, high_scrutiny: u.high_scrutiny, removed: u.removed, sort_order: u.sort_order ?? 0 }))
+    const updates = units.map((u) => ({ subject: u.subject, unit_name: u.unit_name, priority: u.priority, high_scrutiny: u.high_scrutiny, removed: u.removed, sort_order: u.sort_order ?? 0, assessment_type: u.assessment_type || null }))
     const res = await fetch('/api/unit-priorities', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -149,6 +186,23 @@ export default function UnitsPage() {
             {weeksSource === 'calendar' && '✓ From your uploaded district calendar (set on the Year Plan page).'}
             {weeksSource === 'default' && "Using a standard 36-week default until you upload your district calendar on the Year Plan page."}
             {weeksSource === 'manual' && 'Manually overridden.'}
+          </p>
+        </div>
+
+        <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
+          <label style={{ fontSize: 13 }}>
+            Default assessment type for all units
+            <select
+              value={defaultAssessmentType}
+              onChange={(e) => saveDefaultAssessmentType(e.target.value)}
+              style={{ marginLeft: 10, padding: 6, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }}
+            >
+              {ASSESSMENT_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+            </select>
+            {savingDefaultType && <span style={{ fontSize: 11, color: '#999', marginLeft: 8 }}>Saving…</span>}
+          </label>
+          <p style={{ fontSize: 11, color: '#999', margin: '6px 0 0' }}>
+            Applies to any unit that doesn't have its own override set below.
           </p>
         </div>
 
@@ -293,7 +347,43 @@ export default function UnitsPage() {
                         style={{ width: 140 }}
                       />
                       <span style={{ fontSize: 12, color: '#888', width: 32 }}>{u.priority}×</span>
+                      <select
+                        value={u.assessment_type || ''}
+                        onChange={(e) => updateUnit(subject, u.unit_name, 'assessment_type', e.target.value || null)}
+                        title="Assessment type for this unit (overrides the default above)"
+                        style={{ fontSize: 11, padding: '3px 6px', border: `1px solid ${C.border}`, borderRadius: 5, color: u.assessment_type ? '#333' : '#aaa' }}
+                      >
+                        <option value="">Default ({ASSESSMENT_TYPES.find((t) => t.key === defaultAssessmentType)?.label})</option>
+                        {ASSESSMENT_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                      </select>
                     </div>
+
+                    {(() => {
+                      const endWeek = endWeekByUnit[`${subject}::${u.unit_name}`]
+                      const status = !u.removed ? reminderStatus(currentWeek, endWeek) : null
+                      if (!status) return null
+                      const effectiveType = ASSESSMENT_TYPES.find((t) => t.key === (u.assessment_type || defaultAssessmentType))
+                      return (
+                        <div style={{
+                          marginTop: 8, marginLeft: 30, padding: '8px 12px', borderRadius: 6, fontSize: 12,
+                          background: status === 'due' ? '#fdecea' : '#fdf3e3',
+                          color: status === 'due' ? '#a33' : '#7a5a1e',
+                          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+                        }}>
+                          <span>
+                            {status === 'due'
+                              ? `This unit has wrapped — have you built the ${effectiveType?.label.toLowerCase()}?`
+                              : `This unit ends soon (week ${endWeek}) — time to line up the ${effectiveType?.label.toLowerCase()}.`}
+                          </span>
+                          <a href={effectiveType?.guidedLink || '/assessment-tool'} style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>
+                            {effectiveType?.guidedLabel || 'Build it now'}
+                          </a>
+                          <a href="https://optimizeyourfreedom.com" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>
+                            Or have it AI-generated →
+                          </a>
+                        </div>
+                      )
+                    })()}
 
                     {/* Content is the primary focus, per Aj's instruction -- shown
                         directly, not hidden behind hover or a toggle. Curricular
