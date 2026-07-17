@@ -2,7 +2,7 @@
 import { sbSelect, sbInsert, sbUpdate } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/session'
 import { seedDayFromWeeklyTemplate } from '@/lib/daily-plan'
-import { insertEventIntoDay, appendDisplacedBlock } from '@/lib/calendar-events'
+import { insertEventIntoDay, appendDisplacedBlock, findNextOccurrenceDate } from '@/lib/calendar-events'
 
 // GET ?from=YYYY-MM-DD&to=YYYY-MM-DD: list events in a date range (used by
 // the Weekly Schedule page to overlay this week's events on the grid).
@@ -74,23 +74,28 @@ async function applyEventToDay(userId, event) {
 
   if (!displaced.length) return null
 
-  // Push each displaced subject onto the next day's plan (seeding that
-  // day from the template first if needed).
-  const nextDate = new Date(event.event_date + 'T00:00:00')
-  nextDate.setDate(nextDate.getDate() + 1)
-  const nextDateStr = nextDate.toISOString().slice(0, 10)
+  // Look up the Weekly Schedule template to find each displaced subject's
+  // actual next dedicated slot -- not just "tomorrow." A subject that only
+  // runs once a week (e.g. Social Studies) needs to wait for its next
+  // scheduled day, which may be next week.
+  const [weeklyForBump] = await sbSelect('weekly_schedules', `?user_id=eq.${userId}&select=grid&order=updated_at.desc&limit=1`)
+  const weeklyGrid = weeklyForBump?.grid || null
 
-  let [nextPlan] = await sbSelect('daily_plans', `?user_id=eq.${userId}&plan_date=eq.${nextDateStr}&select=*&limit=1`)
-  if (!nextPlan) {
-    const [weekly] = await sbSelect('weekly_schedules', `?user_id=eq.${userId}&select=grid&order=updated_at.desc&limit=1`)
-    const blocks = weekly ? seedDayFromWeeklyTemplate(weekly.grid, nextDateStr) : []
-    ;[nextPlan] = await sbInsert('daily_plans', [{ user_id: userId, plan_date: nextDateStr, blocks, ttoc_notes: {} }])
+  const notes = []
+  for (const d of displaced) {
+    const targetDateStr = findNextOccurrenceDate(weeklyGrid, d.subject, event.event_date)
+
+    let [targetPlan] = await sbSelect('daily_plans', `?user_id=eq.${userId}&plan_date=eq.${targetDateStr}&select=*&limit=1`)
+    if (!targetPlan) {
+      const seededBlocks = weeklyGrid ? seedDayFromWeeklyTemplate(weeklyGrid, targetDateStr) : []
+      ;[targetPlan] = await sbInsert('daily_plans', [{ user_id: userId, plan_date: targetDateStr, blocks: seededBlocks, ttoc_notes: {} }])
+    }
+
+    const updatedBlocks = appendDisplacedBlock(targetPlan.blocks, d, targetDateStr)
+    await sbUpdate('daily_plans', `?user_id=eq.${userId}&plan_date=eq.${targetDateStr}`, { blocks: updatedBlocks, updated_at: new Date().toISOString() })
+
+    notes.push(`${d.subject} bumped from ${event.event_date} to its next dedicated slot on ${targetDateStr}`)
   }
 
-  let nextBlocks = nextPlan.blocks
-  for (const d of displaced) nextBlocks = appendDisplacedBlock(nextBlocks, d, nextDateStr)
-  await sbUpdate('daily_plans', `?user_id=eq.${userId}&plan_date=eq.${nextDateStr}`, { blocks: nextBlocks, updated_at: new Date().toISOString() })
-
-  const subjects = displaced.map((d) => d.subject).join(', ')
-  return `${subjects} bumped from ${event.event_date} to ${nextDateStr} to make room for "${event.title}"`
+  return notes.join('; ')
 }
