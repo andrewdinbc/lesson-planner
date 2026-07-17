@@ -47,6 +47,9 @@ export default function UnitsPage() {
   const [currentWeek, setCurrentWeek] = useState(null)
   const [endWeekByUnit, setEndWeekByUnit] = useState({}) // `${subject}::${unit_name}` -> end_week, from the Timeline
   const [collapsedSubjects, setCollapsedSubjects] = useState({}) // subject -> bool, minimize/expand so the page isn't so long
+  const [splitClassEnabled, setSplitClassEnabled] = useState(false) // A/B year rotation -- half the content is covered each year
+  const [activeRotationYear, setActiveRotationYear] = useState('A')
+  const [savingSplitClass, setSavingSplitClass] = useState(false)
   const [examplesState, setExamplesState] = useState({}) // `${key}` -> { loading, examples, error }
   const [doItNow, setDoItNow] = useState({}) // `${key}` -> bool, overrides the default "saved for later" state for one unit's reminder
 
@@ -157,6 +160,14 @@ export default function UnitsPage() {
       })
       .catch(() => {})
 
+    fetch('/api/split-class-settings')
+      .then((r) => r.json())
+      .then((d) => {
+        setSplitClassEnabled(!!d.split_class_enabled)
+        setActiveRotationYear(d.active_rotation_year || 'A')
+      })
+      .catch(() => {})
+
     // Timeline end_week per unit powers the "unit ending soon" reminder --
     // reuses the same seeded/edited data the Year Timeline page shows, so
     // the two stay consistent rather than tracking dates twice.
@@ -184,6 +195,28 @@ export default function UnitsPage() {
 
   function toggleSubjectCollapsed(subject) {
     setCollapsedSubjects((prev) => ({ ...prev, [subject]: !prev[subject] }))
+  }
+
+  async function saveSplitClassSettings(patch) {
+    setSavingSplitClass(true)
+    try {
+      await fetch('/api/split-class-settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      })
+    } finally {
+      setSavingSplitClass(false)
+    }
+  }
+
+  function toggleSplitClassEnabled(checked) {
+    setSplitClassEnabled(checked)
+    saveSplitClassSettings({ split_class_enabled: checked })
+  }
+
+  function setRotationYear(year) {
+    setActiveRotationYear(year)
+    saveSplitClassSettings({ active_rotation_year: year })
   }
 
   async function fetchExamples(key, { subject, unitName, contentSummary, assessmentTypeLabel, grade }) {
@@ -276,6 +309,44 @@ export default function UnitsPage() {
           <p style={{ fontSize: 11, color: '#999', margin: '10px 0 0' }}>
             Applies to any unit that doesn't have its own override set below.
           </p>
+        </div>
+
+        <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
+          <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={splitClassEnabled}
+              onChange={(e) => toggleSplitClassEnabled(e.target.checked)}
+            />
+            I teach a split class (A/B year rotation)
+            {savingSplitClass && <span style={{ fontSize: 11, color: '#999' }}>Saving…</span>}
+          </label>
+          <p style={{ fontSize: 11, color: '#999', margin: '6px 0 0' }}>
+            Common when a class spans two grades -- you cover half the content each year so students never repeat what they already had.
+          </p>
+          {splitClassEnabled && (
+            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 13 }}>Currently teaching:</span>
+              {['A', 'B'].map((year) => (
+                <button
+                  key={year}
+                  type="button"
+                  onClick={() => setRotationYear(year)}
+                  style={{
+                    padding: '6px 16px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                    border: `1px solid ${activeRotationYear === year ? C.gold : C.border}`,
+                    background: activeRotationYear === year ? '#fff8ee' : '#fff',
+                    color: activeRotationYear === year ? C.gold : '#888',
+                  }}
+                >
+                  Year {year}
+                </button>
+              ))}
+              <span style={{ fontSize: 11, color: '#999' }}>
+                Units tagged for the other year are dimmed below, not deleted -- switch anytime.
+              </span>
+            </div>
+          )}
         </div>
 
         {classSetupStatus === 'missing' && (
@@ -380,6 +451,9 @@ export default function UnitsPage() {
             const isExpanded = expandedCompetency[key]
             const isDragging = dragInfo?.subject === subject && dragInfo?.fromIndex === idx
             const savedForLater = u.saved_for_later !== false && !doItNow[key] // defaults to true
+            // Split (A/B year) rotation: dim units tagged for the other year
+            // instead of hiding them, so it's still easy to switch or check.
+            const isOffRotation = splitClassEnabled && u.year_rotation && u.year_rotation !== activeRotationYear
             const exState = examplesState[key]
             const endWeek = endWeekByUnit[`${subject}::${u.unit_name}`]
             const status = !u.removed ? reminderStatus(currentWeek, endWeek) : null
@@ -393,7 +467,7 @@ export default function UnitsPage() {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => { e.preventDefault(); handleDrop(subject, idx) }}
                 style={{
-                  marginBottom: 12, opacity: u.removed ? 0.4 : isDragging ? 0.3 : 1,
+                  marginBottom: 12, opacity: u.removed ? 0.4 : isDragging ? 0.3 : isOffRotation ? 0.45 : 1,
                   borderBottom: `1px solid ${C.border}`, paddingBottom: 10,
                   background: isDragging ? '#f2f0ea' : 'transparent',
                 }}
@@ -425,7 +499,24 @@ export default function UnitsPage() {
                     <option value="">Default ({defaultAssessmentTypes.map((k) => ASSESSMENT_TYPES.find((t) => t.key === k)?.label).filter(Boolean).join(', ')})</option>
                     {ASSESSMENT_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
                   </select>
+                  {splitClassEnabled && (
+                    <select
+                      value={u.year_rotation || ''}
+                      onChange={(e) => updateUnit(subject, u.unit_name, 'year_rotation', e.target.value || null)}
+                      title="Which rotation year this unit is taught in -- 'Both' means every year"
+                      style={{ fontSize: 11, padding: '3px 6px', border: `1px solid ${C.border}`, borderRadius: 5, color: u.year_rotation ? '#333' : '#aaa' }}
+                    >
+                      <option value="">Both years</option>
+                      <option value="A">Year A only</option>
+                      <option value="B">Year B only</option>
+                    </select>
+                  )}
                 </div>
+                {isOffRotation && (
+                  <div style={{ fontSize: 11, color: '#999', marginLeft: 30, marginTop: 2 }}>
+                    Not taught this rotation year (Year {u.year_rotation})
+                  </div>
+                )}
 
                 {status && (
                   <div style={{
