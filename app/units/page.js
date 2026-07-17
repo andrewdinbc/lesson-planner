@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 import { COLORS as C, FONT_BODY } from '@/lib/theme'
 import { reorderWithinSubject } from '@/lib/unit-priorities'
@@ -47,7 +47,12 @@ export default function UnitsPage() {
   const [expandedCompetency, setExpandedCompetency] = useState({}) // `${subject}::${unit_name}` -> bool
   const [feedbackText, setFeedbackText] = useState('')
   const [feedbackStatus, setFeedbackStatus] = useState('idle') // 'idle' | 'sending' | 'sent' | 'error'
-  const [dragInfo, setDragInfo] = useState(null) // { subject, fromIndex }
+  const [dragInfo, setDragInfo] = useState(null) // { subject, fromIndex, unitName }
+  const [dragPointerY, setDragPointerY] = useState(0)
+  const [dragStartY, setDragStartY] = useState(0)
+  const [dragRowHeight, setDragRowHeight] = useState(0)
+  const [dragHoverIndex, setDragHoverIndex] = useState(0)
+  const rowRefs = useRef({}) // `${subject}::${unit_name}` -> DOM node, for measuring drag positions
   const [defaultAssessmentTypes, setDefaultAssessmentTypes] = useState(['quiz'])
   const [pendingAssessmentTypes, setPendingAssessmentTypes] = useState(['quiz']) // local checkbox state before "Save for later"
   const [savingDefaultType, setSavingDefaultType] = useState(false)
@@ -85,16 +90,61 @@ export default function UnitsPage() {
     }
   }
 
-  function handleDrop(subject, toIndex) {
-    if (!dragInfo || dragInfo.subject !== subject) { setDragInfo(null); return }
-    setUnits((prev) => {
-      const subjectRows = prev.filter((u) => u.subject === subject)
-      const otherRows = prev.filter((u) => u.subject !== subject)
-      const reordered = reorderWithinSubject(subjectRows, dragInfo.fromIndex, toIndex)
-      return [...otherRows, ...reordered]
-    })
-    setDragInfo(null)
+  // Physical drag-to-reorder: grab a unit's handle and pull it to a new spot;
+  // other units in the same subject visually slide out of the way to make
+  // room (a lightweight FLIP-style effect -- siblings are transform-shifted
+  // by the dragged row's height, not actually reordered in the DOM, until
+  // drop commits the real order). Uses Pointer Events so it works with
+  // mouse, touch, and pen the same way.
+  function startDrag(e, subject, unitName, fromIndex) {
+    if (e.button !== undefined && e.button !== 0) return // left-click / primary touch only
+    e.preventDefault()
+    const rowEl = rowRefs.current[`${subject}::${unitName}`]
+    const height = rowEl?.getBoundingClientRect().height || 60
+    setDragInfo({ subject, fromIndex, unitName })
+    setDragStartY(e.clientY)
+    setDragPointerY(e.clientY)
+    setDragRowHeight(height)
+    setDragHoverIndex(fromIndex)
   }
+
+  useEffect(() => {
+    if (!dragInfo) return
+
+    function onMove(e) {
+      setDragPointerY(e.clientY)
+      const subjectRows = bySubjectRef.current[dragInfo.subject] || []
+      let closestIndex = dragInfo.fromIndex
+      let closestDist = Infinity
+      subjectRows.forEach((u, i) => {
+        const el = rowRefs.current[`${dragInfo.subject}::${u.unit_name}`]
+        if (!el) return
+        const rect = el.getBoundingClientRect()
+        const mid = rect.top + rect.height / 2
+        const dist = Math.abs(e.clientY - mid)
+        if (dist < closestDist) { closestDist = dist; closestIndex = i }
+      })
+      setDragHoverIndex((prev) => (prev === closestIndex ? prev : closestIndex))
+    }
+
+    function onUp() {
+      setUnits((prev) => {
+        const subjectRows = prev.filter((u) => u.subject === dragInfo.subject)
+        const otherRows = prev.filter((u) => u.subject !== dragInfo.subject)
+        const reordered = reorderWithinSubject(subjectRows, dragInfo.fromIndex, dragHoverIndex)
+        return [...otherRows, ...reordered]
+      })
+      setDragInfo(null)
+    }
+
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragInfo, dragHoverIndex])
 
   async function submitFeedback() {
     if (!feedbackText.trim()) return
@@ -198,6 +248,8 @@ export default function UnitsPage() {
   for (const subject in bySubject) {
     bySubject[subject].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
   }
+  const bySubjectRef = useRef(bySubject)
+  bySubjectRef.current = bySubject // always holds the latest grouping for the drag pointermove listener, without re-binding the listener every render
 
   function updateUnit(subject, unit_name, field, value) {
     setUnits((prev) => prev.map((u) => (u.subject === subject && u.unit_name === unit_name ? { ...u, [field]: value } : u)))
@@ -475,7 +527,7 @@ export default function UnitsPage() {
             const idx = subjectUnits.indexOf(u) // global index within this subject, for drag reordering
             const key = `${subject}::${u.unit_name}`
             const isExpanded = expandedCompetency[key]
-            const isDragging = dragInfo?.subject === subject && dragInfo?.fromIndex === idx
+            const isThisDragged = dragInfo?.subject === subject && dragInfo?.unitName === u.unit_name
             const savedForLater = u.saved_for_later !== false && !doItNow[key] // defaults to true
             // Split (A/B year) rotation: dim units tagged for the other year
             // instead of hiding them, so it's still easy to switch or check.
@@ -485,25 +537,42 @@ export default function UnitsPage() {
             const status = !u.removed ? reminderStatus(currentWeek, endWeek) : null
             const effectiveType = ASSESSMENT_TYPES.find((t) => t.key === (u.assessment_type || defaultAssessmentTypes[0]))
 
+            // Physical drag-to-reorder visuals: the dragged row follows the
+            // pointer directly; siblings between its old and new spot slide
+            // out of the way by its height, so it looks like everything
+            // shifts to make room -- see startDrag()/the pointermove effect above.
+            let rowTransform = 'none'
+            let rowTransition = 'transform 150ms ease'
+            if (isThisDragged) {
+              rowTransform = `translateY(${dragPointerY - dragStartY}px)`
+              rowTransition = 'none'
+            } else if (dragInfo?.subject === subject) {
+              const { fromIndex } = dragInfo
+              if (fromIndex < dragHoverIndex && idx > fromIndex && idx <= dragHoverIndex) rowTransform = `translateY(${-dragRowHeight}px)`
+              else if (fromIndex > dragHoverIndex && idx >= dragHoverIndex && idx < fromIndex) rowTransform = `translateY(${dragRowHeight}px)`
+            }
+
             return (
               <div
                 key={u.unit_name}
-                draggable
-                onDragStart={() => setDragInfo({ subject, fromIndex: idx })}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => { e.preventDefault(); handleDrop(subject, idx) }}
+                ref={(el) => { rowRefs.current[key] = el }}
                 style={{
-                  marginBottom: 12, opacity: u.removed ? 0.4 : isDragging ? 0.3 : isOffRotation ? 0.45 : 1,
+                  marginBottom: 12, opacity: u.removed ? 0.4 : isOffRotation ? 0.45 : 1,
                   borderBottom: `1px solid ${C.border}`, paddingBottom: 10,
-                  background: isDragging ? '#f2f0ea' : 'transparent',
+                  position: 'relative', transform: rowTransform, transition: rowTransition,
+                  zIndex: isThisDragged ? 50 : 1,
+                  background: isThisDragged ? '#fff' : 'transparent',
+                  boxShadow: isThisDragged ? '0 6px 16px rgba(0,0,0,0.15)' : 'none',
+                  borderRadius: isThisDragged ? 8 : 0,
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span
+                    onPointerDown={(e) => startDrag(e, subject, u.unit_name, idx)}
                     title="Drag to reorder teaching sequence"
-                    style={{ cursor: 'grab', color: '#bbb', fontSize: 14, userSelect: 'none' }}
+                    style={{ cursor: isThisDragged ? 'grabbing' : 'grab', color: '#bbb', fontSize: 14, userSelect: 'none', touchAction: 'none' }}
                   >
-                    ⠠
+                    ⠿
                   </span>
                   <input type="checkbox" checked={!u.removed} onChange={(e) => updateUnit(subject, u.unit_name, 'removed', !e.target.checked)} />
                   <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>
