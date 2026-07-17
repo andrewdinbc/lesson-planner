@@ -66,7 +66,7 @@ export default function UnitsPage() {
   const [addingElabKey, setAddingElabKey] = useState(null)
   const [aiBuildingKey, setAiBuildingKey] = useState(null) // elab.key currently running "AI build me this unit"
   const [creativeBuildingKey, setCreativeBuildingKey] = useState(null) // elab.key currently running "AI: creative way to cover this"
-  const [openAddedUnits, setOpenAddedUnits] = useState({}) // LA category key -> bool, default CLOSED (units minimized, elaborations are the focus)
+  const [laStartingView, setLaStartingView] = useState({}) // LA category key -> 'activities' | 'content' | 'competency', default 'activities'
   const [openCoverage, setOpenCoverage] = useState({}) // unit key -> bool, "What does this cover?" toggle
   const [splitClassEnabled, setSplitClassEnabled] = useState(false) // A/B year rotation -- half the content is covered each year
   const [activeRotationYear, setActiveRotationYear] = useState('A')
@@ -636,10 +636,10 @@ export default function UnitsPage() {
 
           // Renders one unit row -- shared by the flat list (most subjects)
           // and the three Language Arts sub-sections (Reading/Writing/Oral).
-          const renderUnitRow = (u) => {
+          const renderUnitRow = (u, forceShowCompetency = false) => {
             const idx = subjectUnits.indexOf(u) // global index within this subject, for drag reordering
             const key = `${subject}::${u.unit_name}`
-            const isExpanded = expandedCompetency[key]
+            const isExpanded = forceShowCompetency || expandedCompetency[key]
             const isThisDragged = dragInfo?.subject === subject && dragInfo?.unitName === u.unit_name
             const savedForLater = u.saved_for_later !== false && !doItNow[key] // defaults to true
             // Split (A/B year) rotation: dim units tagged for the other year
@@ -886,7 +886,7 @@ export default function UnitsPage() {
                       return cats.includes(cat.key)
                     })
                     const colors = LA_CAT_COLORS[cat.key]
-                    const addedUnitsOpen = !!openAddedUnits[cat.key] // default CLOSED -- minimized, expandable
+                    const startingView = laStartingView[cat.key] || 'activities' // teacher picks which view opens first: Activities, Content, or Curricular Competency
                     const catElaborations = elaborationsForCategory(cat.key)
                     const grade = teacherGrades?.join?.('/') || null
 
@@ -953,37 +953,58 @@ export default function UnitsPage() {
                       )
                     }
 
+                    const TABS = [
+                      { key: 'activities', label: `Activities (${catElaborations.length})` },
+                      { key: 'content', label: `Content (${catUnits.length})` },
+                      { key: 'competency', label: `Curricular Competency (${catUnits.length})` },
+                    ]
+
                     return (
                       <div key={cat.key} style={{ marginBottom: 16, background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, padding: 12 }}>
-                        <h3 style={{ fontSize: 13, color: colors.text, fontWeight: 700, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                          {cat.label} <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.7, textTransform: 'none' }}>— Elaboration ideas ({catElaborations.length})</span>
+                        <h3 style={{ fontSize: 13, color: colors.text, fontWeight: 700, margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                          {cat.label}
                         </h3>
 
-                        {/* Always expanded per Aj -- these are the main focus of this section, not something to hide behind a toggle. */}
-                        <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {coveredElabs.map((elab) => elabCard(elab, false))}
-                          {gapElabs.length > 0 && (
-                            <>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: '#a33', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: coveredElabs.length > 0 ? 6 : 0 }}>
-                                Not yet covered ({gapElabs.length})
-                              </div>
-                              {gapElabs.map((elab) => elabCard(elab, true))}
-                            </>
-                          )}
+                        {/* Teacher picks the starting point -- Activities (Elaboration ideas), Content, or Curricular Competency. Only the selected view renders; switch anytime. */}
+                        <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                          {TABS.map((tab) => (
+                            <button
+                              key={tab.key}
+                              type="button"
+                              onClick={() => setLaStartingView((prev) => ({ ...prev, [cat.key]: tab.key }))}
+                              style={{
+                                padding: '5px 12px', borderRadius: 14, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                                border: `1px solid ${colors.border}`,
+                                background: startingView === tab.key ? colors.text : '#fff',
+                                color: startingView === tab.key ? '#fff' : colors.text,
+                              }}
+                            >
+                              {tab.label}
+                            </button>
+                          ))}
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => setOpenAddedUnits((prev) => ({ ...prev, [cat.key]: !prev[cat.key] }))}
-                          style={{ background: 'none', border: 'none', color: colors.text, fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0, marginTop: 4, textDecoration: 'underline' }}
-                        >
-                          {addedUnitsOpen ? '▾ Hide' : '▸ Show'} units already added ({catUnits.length})
-                        </button>
+                        {startingView === 'activities' && (
+                          <div style={{ marginBottom: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {coveredElabs.map((elab) => elabCard(elab, false))}
+                            {gapElabs.length > 0 && (
+                              <>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: '#a33', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: coveredElabs.length > 0 ? 6 : 0 }}>
+                                  Not yet covered ({gapElabs.length})
+                                </div>
+                                {gapElabs.map((elab) => elabCard(elab, true))}
+                              </>
+                            )}
+                            {catElaborations.length === 0 && (
+                              <p style={{ fontSize: 12, color: colors.text, opacity: 0.6, margin: 0 }}>No Elaboration ideas for this section yet.</p>
+                            )}
+                          </div>
+                        )}
 
-                        {addedUnitsOpen && (
-                          <div style={{ marginTop: 10 }}>
-                            {catUnits.length > 0 ? catUnits.map(renderUnitRow) : (
-                              <p style={{ fontSize: 12, color: colors.text, opacity: 0.6, margin: 0 }}>No units here yet -- add one from the Elaboration ideas above.</p>
+                        {(startingView === 'content' || startingView === 'competency') && (
+                          <div>
+                            {catUnits.length > 0 ? catUnits.map((u) => renderUnitRow(u, startingView === 'competency')) : (
+                              <p style={{ fontSize: 12, color: colors.text, opacity: 0.6, margin: 0 }}>No units here yet -- switch to the Activities tab to add one from the Elaboration ideas.</p>
                             )}
                           </div>
                         )}
