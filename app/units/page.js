@@ -6,6 +6,7 @@ import { reorderWithinSubject } from '@/lib/unit-priorities'
 import { ASSESSMENT_TYPES, currentInstructionalWeek, reminderStatus } from '@/lib/assessment-types'
 import { LA_CATEGORIES, categorizeLA } from '@/lib/language-arts-categories'
 import { LA_ELABORATIONS, elaborationsForCategory } from '@/lib/la-elaborations'
+import { getElaborationsForGrades } from '@/lib/curriculum-full-elaborations'
 const ALWAYS_HIGH_SCRUTINY = ['Language Arts', 'Mathematics']
 // Distinct color per Language Arts section so Reading/Writing/Oral read as
 // visually different at a glance, not just by text label.
@@ -906,7 +907,12 @@ export default function UnitsPage() {
                     const colors = LA_CAT_COLORS[cat.key]
                     const startingView = laStartingView[cat.key] || 'activities' // teacher picks which view opens first: Activities, Content, or Curricular Competency
                     const catElaborations = elaborationsForCategory(cat.key)
-                    const grade = [...new Set(catUnits.flatMap((u) => u.grades || []))].join('/') || null
+                    const catGradesArr = [...new Set(catUnits.flatMap((u) => u.grades || []))]
+                    const grade = catGradesArr.join('/') || null
+                    // Ministry elaborations band: teacher picks grades 4+5 -> shows 3 through 7
+                    // (2 grades below the lowest selected, 2 above the highest), so they can
+                    // scaffold down or stretch up without leaving the page.
+                    const ministryBand = catGradesArr.length > 0 ? getElaborationsForGrades('Language Arts', catGradesArr) : null
 
                     const isElabCovered = (elab) => catUnits.some((u) => u.source_elaboration_key === elab.key || u.unit_name.toLowerCase() === elab.label.toLowerCase())
                     const coveredElabs = catElaborations.filter(isElabCovered)
@@ -994,6 +1000,7 @@ export default function UnitsPage() {
                       { key: 'activities', label: `Activities (${catElaborations.length})` },
                       { key: 'content', label: `Content (${catUnits.length})` },
                       { key: 'competency', label: `Curricular Competency (${catUnits.length})` },
+                      { key: 'ministry', label: `Ministry Elaborations (${ministryBand?.entries.length || 0})` },
                     ]
 
                     return (
@@ -1042,6 +1049,56 @@ export default function UnitsPage() {
                           <div>
                             {catUnits.length > 0 ? catUnits.map((u) => renderUnitRow(u, startingView === 'competency')) : (
                               <p style={{ fontSize: 12, color: colors.text, opacity: 0.6, margin: 0 }}>No units here yet -- switch to the Activities tab to add one from the Elaboration ideas.</p>
+                            )}
+                          </div>
+                        )}
+
+                        {startingView === 'ministry' && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            {!ministryBand ? (
+                              <p style={{ fontSize: 12, color: colors.text, opacity: 0.6, margin: 0 }}>
+                                No units assigned a grade in this section yet -- add a unit with a grade first, and the Ministry's elaborations for that grade (plus 2 grades below and 2 above) will show here.
+                              </p>
+                            ) : (
+                              <>
+                                <div style={{ fontSize: 11, color: colors.text, opacity: 0.75 }}>
+                                  Your class: <strong>Grade{ministryBand.selectedGrades.length > 1 ? 's' : ''} {ministryBand.selectedGrades.join('/')}</strong>
+                                  {' — '}showing Grade{ministryBand.bandGrades.length > 1 ? 's' : ''} {ministryBand.bandGrades[0]}–{ministryBand.bandGrades[ministryBand.bandGrades.length - 1]} (2 below, 2 above)
+                                </div>
+                                {ministryBand.entries.map((entry) => {
+                                  const isSelected = ministryBand.selectedGrades.includes(entry.grade)
+                                  return (
+                                    <div
+                                      key={entry.grade}
+                                      style={{
+                                        background: '#fff', borderRadius: 6, padding: '8px 10px',
+                                        border: `1px solid ${colors.border}`,
+                                        borderLeft: isSelected ? `4px solid ${colors.text}` : `4px solid ${colors.border}`,
+                                      }}
+                                    >
+                                      <div style={{ fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 4 }}>
+                                        Grade {entry.grade}{isSelected ? ' (your class)' : ''}
+                                      </div>
+                                      <div style={{ fontSize: 10, fontWeight: 700, color: colors.text, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 4 }}>Big Ideas</div>
+                                      <ul style={{ margin: '2px 0 0', paddingLeft: 16, fontSize: 11, color: '#555' }}>
+                                        {entry.bigIdeas.map((bi, i) => <li key={i}>{bi}</li>)}
+                                      </ul>
+                                      <div style={{ fontSize: 10, fontWeight: 700, color: colors.text, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 6 }}>Content</div>
+                                      <ul style={{ margin: '2px 0 0', paddingLeft: 16, fontSize: 11, color: '#555' }}>
+                                        {entry.content.map((c, i) => <li key={i}>{c}</li>)}
+                                      </ul>
+                                      {entry.elaborations.length > 0 && (
+                                        <>
+                                          <div style={{ fontSize: 10, fontWeight: 700, color: colors.text, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 6 }}>Elaborations</div>
+                                          <ul style={{ margin: '2px 0 0', paddingLeft: 16, fontSize: 11, color: '#555' }}>
+                                            {entry.elaborations.map((e, i) => <li key={i}><strong>{e.term}:</strong> {e.detail}</li>)}
+                                          </ul>
+                                        </>
+                                      )}
+                                    </div>
+                                  )
+                                })}
+                              </>
                             )}
                           </div>
                         )}
