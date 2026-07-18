@@ -22,6 +22,82 @@ export default function ForgePage() {
   const [busyId, setBusyId] = useState(null)
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState(null)
+  const [extractingId, setExtractingId] = useState(null)
+  const [selectedForBlend, setSelectedForBlend] = useState(new Set())
+  const [blendName, setBlendName] = useState('')
+  const [personalTwist, setPersonalTwist] = useState('')
+  const [blending, setBlending] = useState(false)
+  const [profiles, setProfiles] = useState([])
+  const [profileBusyId, setProfileBusyId] = useState(null)
+
+  useEffect(() => {
+    fetch('/api/style-profiles')
+      .then((r) => r.json())
+      .then((d) => setProfiles(d.profiles || []))
+  }, [])
+
+  async function extractStylePattern(r) {
+    setExtractingId(r.id)
+    try {
+      const res = await fetch('/api/forge/extract-style-pattern', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: r.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setResources((prev) => prev.map((x) => (x.id === r.id ? { ...x, style_notes: data.styleNotes } : x)))
+    } catch (e) {
+      alert(`Couldn't extract style pattern: ${e.message}`)
+    } finally {
+      setExtractingId(null)
+    }
+  }
+
+  function toggleBlendSelection(id) {
+    setSelectedForBlend((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  async function createBlend() {
+    if (!blendName.trim() || selectedForBlend.size === 0) return
+    setBlending(true)
+    try {
+      const res = await fetch('/api/style-profiles', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: blendName, resourceIds: [...selectedForBlend], personalTwist }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setProfiles((prev) => [data.profile, ...prev])
+      setBlendName('')
+      setPersonalTwist('')
+      setSelectedForBlend(new Set())
+    } catch (e) {
+      alert(`Couldn't create blend: ${e.message}`)
+    } finally {
+      setBlending(false)
+    }
+  }
+
+  async function pushProfileToSteering(profile) {
+    setProfileBusyId(profile.id)
+    try {
+      const res = await fetch('/api/style-profiles/push-to-steering', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: profile.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setProfiles((prev) => prev.map((p) => (p.id === profile.id ? { ...p, pushed_to_steering_doc_id: data.steering_doc_id } : p)))
+    } catch (e) {
+      alert(e.message)
+    } finally {
+      setProfileBusyId(null)
+    }
+  }
 
   useEffect(() => {
     fetch('/api/forge')
@@ -152,26 +228,94 @@ export default function ForgePage() {
         )}
       </div>
 
+      <div style={{ background: '#eef6f0', border: '1px solid #b8dcc2', borderRadius: 8, padding: 14, marginBottom: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#2f6b41', marginBottom: 4 }}>🎨 Blend a Style / Genre</div>
+        <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px' }}>
+          Extract a STYLE pattern from a resource below (structure, tone, pacing, format only -- never its actual content), then check a few and blend them into your own named genre feel, like combining musical influences. AI generation writes wholly original material in that style -- it never reproduces the source content itself.
+        </p>
+        {selectedForBlend.size > 0 && (
+          <div style={{ marginTop: 8 }}>
+            <input
+              value={blendName} onChange={(e) => setBlendName(e.target.value)}
+              placeholder='Name this blend, e.g. "Playful Rigor"'
+              style={{ width: '100%', fontSize: 12, padding: '6px 8px', border: '1px solid #b8dcc2', borderRadius: 5, marginBottom: 6, boxSizing: 'border-box' }}
+            />
+            <textarea
+              value={personalTwist} onChange={(e) => setPersonalTwist(e.target.value)}
+              placeholder="Optional: your own personal twist to layer in, e.g. 'more collaborative, less worksheet-heavy'"
+              rows={2}
+              style={{ width: '100%', fontSize: 12, padding: '6px 8px', border: '1px solid #b8dcc2', borderRadius: 5, marginBottom: 6, boxSizing: 'border-box', fontFamily: 'inherit' }}
+            />
+            <button
+              onClick={createBlend} disabled={blending || !blendName.trim()}
+              style={{ padding: '6px 14px', background: '#2f6b41', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+            >
+              {blending ? 'Blending…' : `Blend ${selectedForBlend.size} Style${selectedForBlend.size > 1 ? 's' : ''}`}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {profiles.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 8 }}>Your Style Blends</div>
+          {profiles.map((p) => (
+            <div key={p.id} style={{ background: '#fff', border: '1px solid #b8dcc2', borderRadius: 8, padding: 12, marginBottom: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#2f6b41' }}>{p.name}</div>
+              <p style={{ fontSize: 12, color: '#555', margin: '4px 0' }}>{p.blended_style_text}</p>
+              <button
+                onClick={() => pushProfileToSteering(p)} disabled={profileBusyId === p.id || !!p.pushed_to_steering_doc_id}
+                style={{ padding: '5px 12px', background: C.gold, color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: p.pushed_to_steering_doc_id ? 'default' : 'pointer', opacity: p.pushed_to_steering_doc_id ? 0.6 : 1 }}
+              >
+                {p.pushed_to_steering_doc_id ? '✓ In AI Steering' : '→ Push to AI Steering'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {resources.map((r) => {
         const statusInfo = STATUS_LABELS[r.status] || STATUS_LABELS.raw
         return (
           <div key={r.id} style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 8, padding: 14, marginBottom: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: C.navy }}>
-                  {r.title} <span style={{ fontSize: 10, color: '#999', fontWeight: 400 }}>({r.source_type === 'pdf' ? 'PDF' : 'URL'})</span>
-                  {r.origin === 'tpt_purchase' && (
-                    <span style={{ fontSize: 9, fontWeight: 700, color: '#7a3c8a', background: '#f5eafa', border: '1px solid #d9b8e8', borderRadius: 4, padding: '1px 6px', marginLeft: 6 }}>
-                      📚 TPT Purchase
-                    </span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <input
+                  type="checkbox" checked={selectedForBlend.has(r.id)} onChange={() => toggleBlendSelection(r.id)}
+                  disabled={!r.style_notes}
+                  title={r.style_notes ? 'Select for style blend' : 'Extract a style pattern first'}
+                  style={{ marginTop: 4 }}
+                />
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: C.navy }}>
+                    {r.title} <span style={{ fontSize: 10, color: '#999', fontWeight: 400 }}>({r.source_type === 'pdf' ? 'PDF' : 'URL'})</span>
+                    {r.origin === 'tpt_purchase' && (
+                      <span style={{ fontSize: 9, fontWeight: 700, color: '#7a3c8a', background: '#f5eafa', border: '1px solid #d9b8e8', borderRadius: 4, padding: '1px 6px', marginLeft: 6 }}>
+                        📚 TPT Purchase
+                      </span>
+                    )}
+                  </div>
+                  {r.source_url && <a href={r.source_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#888' }}>{r.source_url}</a>}
+                  {(r.subject || r.unit_name) && (
+                    <div style={{ fontSize: 11, color: '#999' }}>{[r.subject, r.unit_name].filter(Boolean).join(' — ')}</div>
                   )}
                 </div>
-                {r.source_url && <a href={r.source_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#888' }}>{r.source_url}</a>}
-                {(r.subject || r.unit_name) && (
-                  <div style={{ fontSize: 11, color: '#999' }}>{[r.subject, r.unit_name].filter(Boolean).join(' — ')}</div>
-                )}
               </div>
               <span style={{ fontSize: 11, fontWeight: 700, color: statusInfo.color, whiteSpace: 'nowrap' }}>{statusInfo.label}</span>
+            </div>
+
+            <div style={{ marginBottom: 8 }}>
+              <button
+                onClick={() => extractStylePattern(r)} disabled={extractingId === r.id}
+                style={{ padding: '4px 10px', background: '#fff', border: '1px solid #b8dcc2', color: '#2f6b41', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+              >
+                {extractingId === r.id ? 'Extracting…' : r.style_notes ? '🎨 Re-extract Style Pattern' : '🎨 Extract Style Pattern'}
+              </button>
+              {r.style_notes && (
+                <div style={{ fontSize: 11, color: '#2f6b41', background: '#eef6f0', border: '1px solid #b8dcc2', borderRadius: 5, padding: '6px 8px', marginTop: 6 }}>
+                  <strong>Style pattern:</strong> {r.style_notes}
+                </div>
+              )}
             </div>
 
             <textarea
