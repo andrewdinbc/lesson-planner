@@ -120,6 +120,41 @@ export default function ForgePage() {
   const dialSaveTimers = useRef({})
   const [reportBusyId, setReportBusyId] = useState(null)
 
+  async function toggleObservation(resourceId, layerKey, observationId, included) {
+    setResources((prev) => prev.map((x) => {
+      if (x.id !== resourceId) return x
+      const layers = { ...(x.layer_notes || {}) }
+      layers[layerKey] = (layers[layerKey] || []).map((item) => (item.id === observationId ? { ...item, included } : item))
+      return { ...x, layer_notes: layers }
+    }))
+    try {
+      await fetch('/api/forge', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: resourceId, action: 'toggle_observation', layerKey, observationId, included }),
+      })
+    } catch { /* local state still reflects the change */ }
+  }
+
+  const editSaveTimers = useRef({})
+  function editObservationText(resourceId, layerKey, observationId, text) {
+    setResources((prev) => prev.map((x) => {
+      if (x.id !== resourceId) return x
+      const layers = { ...(x.layer_notes || {}) }
+      layers[layerKey] = (layers[layerKey] || []).map((item) => (item.id === observationId ? { ...item, text } : item))
+      return { ...x, layer_notes: layers }
+    }))
+    const timerKey = `${resourceId}::${layerKey}::${observationId}`
+    if (editSaveTimers.current[timerKey]) clearTimeout(editSaveTimers.current[timerKey])
+    editSaveTimers.current[timerKey] = setTimeout(async () => {
+      try {
+        await fetch('/api/forge', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: resourceId, action: 'edit_observation', layerKey, observationId, text }),
+        })
+      } catch { /* local state still reflects the change */ }
+    }, 600)
+  }
+
   async function setLayerPreference(resourceId, layerKey, currentPref, newPref) {
     const nextPref = currentPref === newPref ? null : newPref // click again to clear
     setResources((prev) => prev.map((x) => (x.id === resourceId ? { ...x, layer_preferences: { ...(x.layer_preferences || {}), [layerKey]: nextPref } } : x)))
@@ -547,8 +582,8 @@ export default function ForgePage() {
               {r.layer_notes && (
                 <div style={{ marginTop: 6 }}>
                   {LAYER_META.map((layer) => {
-                    const value = r.layer_notes[layer.key]
-                    if (!value) return null
+                    const items = Array.isArray(r.layer_notes[layer.key]) ? r.layer_notes[layer.key] : []
+                    if (!items.length) return null
                     const expandKey = `${r.id}::${layer.key}`
                     const isExpanded = expandedLayer === expandKey
                     const pref = (r.layer_preferences || {})[layer.key]
@@ -563,24 +598,41 @@ export default function ForgePage() {
                             <span style={{ color: '#4a8a5f', textDecoration: 'underline', fontSize: 10 }}>
                               {isExpanded ? 'Hide' : 'Explore this layer →'}
                             </span>
-                            <div style={{ marginTop: 2 }}>{value}</div>
                           </button>
                           <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
                             <button
                               onClick={() => setLayerPreference(r.id, layer.key, pref, 'like')}
-                              title="I like this -- emphasize it in blends"
+                              title="I like this layer overall -- emphasize it in blends"
                               style={{ background: pref === 'like' ? '#4a8a5f' : '#fff', color: pref === 'like' ? '#fff' : '#4a8a5f', border: '1px solid #4a8a5f', borderRadius: 4, fontSize: 11, padding: '2px 6px', cursor: 'pointer' }}
                             >👍</button>
                             <button
                               onClick={() => setLayerPreference(r.id, layer.key, pref, 'dislike')}
-                              title="I dislike this -- avoid it in blends"
+                              title="I dislike this layer overall -- avoid it in blends"
                               style={{ background: pref === 'dislike' ? '#c47a7a' : '#fff', color: pref === 'dislike' ? '#fff' : '#c47a7a', border: '1px solid #c47a7a', borderRadius: 4, fontSize: 11, padding: '2px 6px', cursor: 'pointer' }}
                             >👎</button>
                           </div>
                         </div>
+
+                        <div style={{ marginTop: 4 }}>
+                          {items.map((item) => (
+                            <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0', opacity: item.included ? 1 : 0.4 }}>
+                              <input
+                                type="checkbox" checked={item.included}
+                                onChange={(e) => toggleObservation(r.id, layer.key, item.id, e.target.checked)}
+                                title={item.included ? 'Included -- click to exclude' : 'Excluded -- click to include'}
+                              />
+                              <input
+                                value={item.text}
+                                onChange={(e) => editObservationText(r.id, layer.key, item.id, e.target.value)}
+                                style={{ flex: 1, fontSize: 11, padding: '2px 6px', border: '1px solid #b8dcc2', borderRadius: 4, background: '#fff', textDecoration: item.included ? 'none' : 'line-through' }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+
                         {isExpanded && (
                           <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid #b8dcc2', fontSize: 10, color: '#5a8a68', fontStyle: 'italic' }}>
-                            {layer.hint}
+                            {layer.hint} Uncheck any item above to exclude it from blends and future generation, or edit its text directly -- changes save automatically.
                           </div>
                         )}
                       </div>

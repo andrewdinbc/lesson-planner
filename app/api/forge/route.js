@@ -98,6 +98,46 @@ export async function POST(request) {
       return Response.json({ ok: true, layer_preferences: prefs })
     }
 
+    // Microbial-level control (Aj, 2026-07-18): check/uncheck an individual
+    // observation within a layer -- unchecked items are excluded from
+    // style_notes and from anything blended, without needing to accept or
+    // reject the whole layer.
+    if (action === 'toggle_observation') {
+      const { layerKey, observationId, included } = body
+      if (!layerKey || !observationId) return Response.json({ error: 'layerKey and observationId are required' }, { status: 400 })
+      const [row] = await sbSelect('forge_resources', `?id=eq.${id}&user_id=eq.${user.id}&select=layer_notes`)
+      const layers = { ...(row?.layer_notes || {}) }
+      layers[layerKey] = (layers[layerKey] || []).map((item) => (item.id === observationId ? { ...item, included } : item))
+      const flatSummary = Object.entries(layers)
+        .map(([key, items]) => {
+          const inc = (items || []).filter((i) => i.included).map((i) => i.text)
+          return inc.length ? `${key}: ${inc.join(', ')}` : null
+        })
+        .filter(Boolean)
+        .join(' ')
+      await sbUpdate('forge_resources', `?id=eq.${id}&user_id=eq.${user.id}`, { layer_notes: layers, style_notes: flatSummary, updated_at: new Date().toISOString() })
+      return Response.json({ ok: true, layer_notes: layers, style_notes: flatSummary })
+    }
+
+    // Edit an individual observation's text directly -- the "editable"
+    // half of microbial-level control, alongside toggle_observation.
+    if (action === 'edit_observation') {
+      const { layerKey, observationId, text } = body
+      if (!layerKey || !observationId) return Response.json({ error: 'layerKey and observationId are required' }, { status: 400 })
+      const [row] = await sbSelect('forge_resources', `?id=eq.${id}&user_id=eq.${user.id}&select=layer_notes`)
+      const layers = { ...(row?.layer_notes || {}) }
+      layers[layerKey] = (layers[layerKey] || []).map((item) => (item.id === observationId ? { ...item, text } : item))
+      const flatSummary = Object.entries(layers)
+        .map(([key, items]) => {
+          const inc = (items || []).filter((i) => i.included).map((i) => i.text)
+          return inc.length ? `${key}: ${inc.join(', ')}` : null
+        })
+        .filter(Boolean)
+        .join(' ')
+      await sbUpdate('forge_resources', `?id=eq.${id}&user_id=eq.${user.id}`, { layer_notes: layers, style_notes: flatSummary, updated_at: new Date().toISOString() })
+      return Response.json({ ok: true, layer_notes: layers, style_notes: flatSummary })
+    }
+
     return Response.json({ error: `Unknown action: ${action}` }, { status: 400 })
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 })

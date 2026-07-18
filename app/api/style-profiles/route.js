@@ -52,16 +52,19 @@ export async function POST(request) {
     // Fold in like/dislike layer preferences: liked layers get emphasized,
     // disliked ones get explicitly named as things to AVOID, so the blend
     // deliberately diverges from what the teacher didn't want -- this is
-    // also what gets documented in the differentiation report.
+    // also what gets documented in the differentiation report. layer_notes
+    // is now an array of {id, text, included} per layer (microbial-level
+    // control, Aj 2026-07-18) -- only included observations are used here.
     const likedLines = []
     const dislikedLines = []
     for (const r of withNotes) {
       const prefs = r.layer_preferences || {}
       for (const [layerKey, pref] of Object.entries(prefs)) {
-        const layerValue = r.layer_notes?.[layerKey]
-        if (!layerValue) continue
-        if (pref === 'like') likedLines.push(`From "${r.title}" (${layerKey}): ${layerValue}`)
-        if (pref === 'dislike') dislikedLines.push(`From "${r.title}" (${layerKey}): ${layerValue}`)
+        const items = (r.layer_notes?.[layerKey] || []).filter((i) => i.included)
+        if (!items.length) continue
+        const text = items.map((i) => i.text).join(', ')
+        if (pref === 'like') likedLines.push(`From "${r.title}" (${layerKey}): ${text}`)
+        if (pref === 'dislike') dislikedLines.push(`From "${r.title}" (${layerKey}): ${text}`)
       }
     }
 
