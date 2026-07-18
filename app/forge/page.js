@@ -44,6 +44,8 @@ export default function ForgePage() {
   const [blending, setBlending] = useState(false)
   const [profiles, setProfiles] = useState([])
   const [profileBusyId, setProfileBusyId] = useState(null)
+  const [contentDraft, setContentDraft] = useState({}) // profileId -> {subject, grade, topic, result}
+  const [generatingContentId, setGeneratingContentId] = useState(null)
 
   useEffect(() => {
     fetch('/api/style-profiles')
@@ -111,6 +113,29 @@ export default function ForgePage() {
       alert(e.message)
     } finally {
       setProfileBusyId(null)
+    }
+  }
+
+  async function generateOriginalContent(profile) {
+    const draft = contentDraft[profile.id] || {}
+    if (!draft.subject || !draft.grade) { alert('Pick a subject and the grade the end user wants first.'); return }
+    setGeneratingContentId(profile.id)
+    try {
+      const res = await fetch('/api/style-profiles/generate-content', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ styleProfileId: profile.id, subject: draft.subject, grade: draft.grade, topic: draft.topic }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setContentDraft((prev) => ({ ...prev, [profile.id]: { ...draft, result: data.content } }))
+      // Refresh resources so the newly generated item shows up in Forge.
+      const r2 = await fetch('/api/forge')
+      const d2 = await r2.json()
+      setResources(d2.resources || [])
+    } catch (e) {
+      alert(`Couldn't generate content: ${e.message}`)
+    } finally {
+      setGeneratingContentId(null)
     }
   }
 
@@ -284,6 +309,54 @@ export default function ForgePage() {
               >
                 {p.pushed_to_steering_doc_id ? '✓ In AI Steering' : '→ Push to AI Steering'}
               </button>
+
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #e6e0d5' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.navy, marginBottom: 4 }}>
+                  Generate original content in this style
+                </div>
+                <p style={{ fontSize: 10, color: '#999', margin: '0 0 6px' }}>
+                  Content is written fresh for the grade the end user picks below -- grounded in the real BC curriculum for that grade, never taken from any uploaded/purchased resource.
+                </p>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+                  <input
+                    placeholder="Subject, e.g. Mathematics"
+                    value={contentDraft[p.id]?.subject || ''}
+                    onChange={(e) => setContentDraft((prev) => ({ ...prev, [p.id]: { ...prev[p.id], subject: e.target.value } }))}
+                    style={{ flex: 1, minWidth: 140, fontSize: 12, padding: '5px 8px', border: `1px solid ${C.border}`, borderRadius: 5 }}
+                  />
+                  <select
+                    value={contentDraft[p.id]?.grade || ''}
+                    onChange={(e) => setContentDraft((prev) => ({ ...prev, [p.id]: { ...prev[p.id], grade: e.target.value } }))}
+                    style={{ fontSize: 12, padding: '5px 8px', border: `1px solid ${C.border}`, borderRadius: 5 }}
+                  >
+                    <option value="">Grade (end user picks)</option>
+                    {['K', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map((g) => <option key={g} value={g}>Grade {g}</option>)}
+                  </select>
+                </div>
+                <input
+                  placeholder="Optional topic/focus"
+                  value={contentDraft[p.id]?.topic || ''}
+                  onChange={(e) => setContentDraft((prev) => ({ ...prev, [p.id]: { ...prev[p.id], topic: e.target.value } }))}
+                  style={{ width: '100%', fontSize: 12, padding: '5px 8px', border: `1px solid ${C.border}`, borderRadius: 5, marginBottom: 6, boxSizing: 'border-box' }}
+                />
+                <button
+                  onClick={() => generateOriginalContent(p)} disabled={generatingContentId === p.id}
+                  style={{ padding: '6px 14px', background: '#2f6b41', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  {generatingContentId === p.id ? 'Generating…' : '✨ Generate Original Content'}
+                </button>
+                {contentDraft[p.id]?.result && (
+                  <div style={{ marginTop: 8, background: '#f7f5f0', border: `1px solid ${C.border}`, borderRadius: 6, padding: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.navy }}>{contentDraft[p.id].result.title}</div>
+                    <p style={{ fontSize: 10, color: '#1a7a3e', margin: '2px 0 6px' }}>✓ Saved to Forge as a new, wholly original resource</p>
+                    <ul style={{ margin: 0, paddingLeft: 16, fontSize: 11, color: '#555' }}>
+                      {contentDraft[p.id].result.items.map((item, i) => (
+                        <li key={i} style={{ marginBottom: 3 }}><em>[{item.type}]</em> {item.text}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -307,6 +380,11 @@ export default function ForgePage() {
                     {r.origin === 'tpt_purchase' && (
                       <span style={{ fontSize: 9, fontWeight: 700, color: '#7a3c8a', background: '#f5eafa', border: '1px solid #d9b8e8', borderRadius: 4, padding: '1px 6px', marginLeft: 6 }}>
                         📚 TPT Purchase
+                      </span>
+                    )}
+                    {r.origin === 'ai_generated_original' && (
+                      <span style={{ fontSize: 9, fontWeight: 700, color: '#2f6b41', background: '#eef6f0', border: '1px solid #b8dcc2', borderRadius: 4, padding: '1px 6px', marginLeft: 6 }}>
+                        ✨ Original, AI-Generated
                       </span>
                     )}
                   </div>
