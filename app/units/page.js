@@ -65,11 +65,8 @@ export default function UnitsPage() {
   const [endWeekByUnit, setEndWeekByUnit] = useState({}) // `${subject}::${unit_name}` -> end_week, from the Timeline
   const [collapsedSubjects, setCollapsedSubjects] = useState({ Mathematics: true, 'Social Studies': true }) // subject -> bool, minimize/expand so the page isn't so long -- Math and Social Studies start minimized per Aj
   const [addingElabKey, setAddingElabKey] = useState(null)
-  const [aiBuildingKey, setAiBuildingKey] = useState(null) // elab.key currently running "AI build me this unit"
-  const [creativeBuildingKey, setCreativeBuildingKey] = useState(null) // elab.key currently running "AI: creative way to cover this"
   const [laStartingView, setLaStartingView] = useState({}) // LA category key -> 'activities' | 'content' | 'competency', default 'activities'
-  const [occurrenceCounts, setOccurrenceCounts] = useState({}) // `${cat.key}::${elab.key}` -> number, how many instances to create at once (e.g. 3 Novel Studies this year)
-  const [manualApproach, setManualApproach] = useState({}) // `${cat.key}::${elab.key}` -> string, teacher's own way to cover a gap instead of AI inventing one
+  const [manualApproach, setManualApproach] = useState({}) // `${cat.key}::${elab.key}` -> string, optional note carried along when adding to the Year Long Plan
   const [splitClassEnabled, setSplitClassEnabled] = useState(false) // A/B year rotation -- half the content is covered each year
   const [activeRotationYear, setActiveRotationYear] = useState('A')
   const [savingSplitClass, setSavingSplitClass] = useState(false)
@@ -295,94 +292,30 @@ export default function UnitsPage() {
     setCollapsedSubjects((prev) => ({ ...prev, [subject]: !prev[subject] }))
   }
 
-  // "+ Add as a Unit Frame" -- inserts an intentionally EMPTY placeholder
-  // unit tagged with the SPECIFIC strand it's being added from (not all
-  // strands the idea generally covers) -- per Aj's 2026-07-17 refinement,
-  // adding "Novel Study" from the Reading tab creates a Reading-specific
-  // unit; adding it again from the Oral tab creates a separate,
-  // independently-tracked Oral-specific unit. `count` (from the
-  // occurrence stepper) inserts that many numbered instances at once
-  // (e.g. "Novel Study #1" / "#2" / "#3" for a teacher who runs 3 a year).
-  async function addUnitFromElaboration(subject, elab, categoryKey, count = 1) {
+  // "Add to Year Long Plan" -- this is a cart, not a builder. It just
+  // records the general idea (plus an optional note, e.g. "Hatchet novel
+  // study") against the strand it's being added from. No AI runs here and
+  // no unit content gets generated yet -- that happens together, later, on
+  // the page where units actually get built and sequenced. Per Aj's
+  // 2026-07-17 note: teachers shouldn't have to think about instance counts
+  // or unit length at this stage, just "yes, make sure this is in the plan."
+  async function addUnitFromElaboration(subject, elab, categoryKey, count = 1, note = '') {
     setAddingElabKey(elab.key)
     try {
-      for (let i = 1; i <= count; i++) {
-        const unit_name = count > 1 ? `${elab.label} #${i}` : elab.label
-        const res = await fetch('/api/unit-priorities', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ addUnit: { subject, unit_name, la_categories: [categoryKey], source_elaboration_key: elab.key } }),
-        })
-        const data = await res.json()
-        if (res.ok) setUnits(data.units || units)
-      }
-    } finally {
-      setAddingElabKey(null)
-    }
-  }
-
-  // "AI build me this unit" -- generates real content tailored to the ONE
-  // strand it's being built for (see app/api/units/ai-build's strand
-  // framing), and inserts it as a fully-fleshed-out unit. `count` inserts
-  // that many separately-generated instances (each gets its own AI call
-  // so e.g. 3 Novel Studies aren't identical copies).
-  async function aiBuildUnit(subject, elab, categoryKey, categoryLabel, grade, count = 1) {
-    setAiBuildingKey(elab.key)
-    try {
-      for (let i = 1; i <= count; i++) {
-        const genRes = await fetch('/api/units/ai-build', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subject, unitLabel: elab.label, covers: elab.covers, category: categoryLabel, grade }),
-        })
-        const gen = await genRes.json()
-        if (!genRes.ok) throw new Error(gen.error)
-        const baseName = gen.unit_name || elab.label
-        const unit_name = count > 1 ? `${baseName} #${i}` : baseName
-        const res = await fetch('/api/unit-priorities', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            addUnit: {
-              subject, unit_name, la_categories: [categoryKey],
-              content_summary: gen.content_summary, curricular_competency: gen.curricular_competency,
-              source_elaboration_key: elab.key,
-            },
-          }),
-        })
-        const data = await res.json()
-        if (res.ok) setUnits(data.units || units)
-      }
-    } catch { /* transient AI/network failure -- teacher can retry */ } finally {
-      setAiBuildingKey(null)
-    }
-  }
-
-  // "AI: creative way to cover this" -- for an elaboration idea with NO
-  // unit yet in this specific strand (a coverage gap), invents a fresh,
-  // non-obvious approach tailored to that strand, and inserts it as a new
-  // unit. If the teacher typed their own approach instead (manualApproach),
-  // AI builds THAT out rather than inventing something different.
-  async function aiCoverGapCreatively(subject, elab, categoryKey, categoryLabel, grade, manualApproach = '') {
-    setCreativeBuildingKey(elab.key)
-    try {
-      const genRes = await fetch('/api/units/ai-build', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject, unitLabel: elab.label, covers: elab.covers, category: categoryLabel, grade, creative: true, manualApproach }),
-      })
-      const gen = await genRes.json()
-      if (!genRes.ok) throw new Error(gen.error)
       const res = await fetch('/api/unit-priorities', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           addUnit: {
-            subject, unit_name: gen.unit_name || elab.label, la_categories: [categoryKey],
-            content_summary: gen.content_summary, curricular_competency: gen.curricular_competency,
+            subject, unit_name: elab.label, la_categories: [categoryKey],
             source_elaboration_key: elab.key,
+            ...(note ? { content_summary: note } : {}),
           },
         }),
       })
       const data = await res.json()
       if (res.ok) setUnits(data.units || units)
-    } catch { /* transient AI/network failure -- teacher can retry */ } finally {
-      setCreativeBuildingKey(null)
+    } finally {
+      setAddingElabKey(null)
     }
   }
 
@@ -899,7 +832,12 @@ export default function UnitsPage() {
 
               {!isCollapsed && (
                 isLanguageArts ? (
-                  LA_CATEGORIES.map((cat) => {
+                  <>
+                    <div style={{ background: '#f7f5f0', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#555', lineHeight: 1.5 }}>
+                      <strong>This is your cart, not the final plan.</strong> Add the broad ideas you want covered this year -- you don't need to work out details, lengths, or how many times you'll run something. Once you've added what you want, AI will combine everything into real, sequenced units on the next page.
+                    </div>
+                    <LanguageArtsNotesPanel subject={subject} />
+                    {LA_CATEGORIES.map((cat) => {
                     const catUnits = subjectUnits.filter((u) => {
                       const cats = u.la_categories?.length ? u.la_categories : [u.la_category || categorizeLA(u.unit_name, u.content_summary)]
                       return cats.includes(cat.key)
@@ -930,7 +868,6 @@ export default function UnitsPage() {
 
                     const elabCard = (elab, isGap) => {
                       const countKey = `${cat.key}::${elab.key}`
-                      const count = occurrenceCounts[countKey] || 1
                       const manualText = manualApproach[countKey] || ''
                       return (
                         <div key={elab.key} style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 6, padding: '8px 10px' }}>
@@ -957,58 +894,21 @@ export default function UnitsPage() {
                                   <input
                                     value={manualText}
                                     onChange={(e) => setManualApproach((prev) => ({ ...prev, [countKey]: e.target.value }))}
-                                    placeholder={`Or type your own way to cover this -- e.g. "Hatchet novel study"`}
+                                    placeholder={`Optional note -- e.g. "Hatchet novel study"`}
                                     style={{ width: '100%', fontSize: 11, padding: '5px 8px', border: `1px solid ${colors.border}`, borderRadius: 5, boxSizing: 'border-box' }}
                                   />
                                 </div>
                               )}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'stretch' }}>
-                              {!isGap && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }} title="How many times this year -- e.g. 3 Novel Studies">
-                                  <span style={{ fontSize: 10, color: '#999' }}># this year</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setOccurrenceCounts((prev) => ({ ...prev, [countKey]: Math.max(1, count - 1) }))}
-                                    style={{ width: 20, height: 20, lineHeight: '18px', padding: 0, borderRadius: 4, border: `1px solid ${colors.border}`, background: '#fff', color: colors.text, fontSize: 12, cursor: 'pointer' }}
-                                  >−</button>
-                                  <span style={{ fontSize: 12, fontWeight: 700, color: colors.text, minWidth: 14, textAlign: 'center' }}>{count}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setOccurrenceCounts((prev) => ({ ...prev, [countKey]: Math.min(12, count + 1) }))}
-                                    style={{ width: 20, height: 20, lineHeight: '18px', padding: 0, borderRadius: 4, border: `1px solid ${colors.border}`, background: '#fff', color: colors.text, fontSize: 12, cursor: 'pointer' }}
-                                  >+</button>
-                                </div>
-                              )}
-                              {isGap ? (
-                                <button
-                                  onClick={() => aiCoverGapCreatively(subject, elab, cat.key, cat.label, grade, manualText)}
-                                  disabled={creativeBuildingKey === elab.key}
-                                  title={manualText ? 'Build out the approach you typed' : `Not yet covered in ${cat.label} -- have AI invent a creative, non-obvious way to cover it`}
-                                  style={{ padding: '4px 10px', background: '#7a3c8a', color: '#fff', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                                >
-                                  {creativeBuildingKey === elab.key ? 'Inventing…' : manualText ? '✨ Build my way' : '✨ AI: creative way to cover this'}
-                                </button>
-                              ) : (
-                                <>
-                                  <button
-                                    onClick={() => addUnitFromElaboration(subject, elab, cat.key, count)}
-                                    disabled={addingElabKey === elab.key}
-                                    title={`Add ${count > 1 ? count + ' units' : 'this'} to your Year Long Plan for ${cat.label} -- empty for now, fill in details later`}
-                                    style={{ padding: '4px 10px', background: colors.text, color: '#fff', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                                  >
-                                    {addingElabKey === elab.key ? 'Adding…' : `+ Add to Year Long Plan${count > 1 ? ` (×${count})` : ''}`}
-                                  </button>
-                                  <button
-                                    onClick={() => aiBuildUnit(subject, elab, cat.key, cat.label, grade, count)}
-                                    disabled={aiBuildingKey === elab.key}
-                                    title={`Have AI generate ${count > 1 ? count + ' separate' : 'real'} unit(s) for ${cat.label} right now`}
-                                    style={{ padding: '4px 10px', background: C.gold, color: '#fff', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                                  >
-                                    {aiBuildingKey === elab.key ? 'Building…' : `✨ AI build me this unit${count > 1 ? ` (×${count})` : ''}`}
-                                  </button>
-                                </>
-                              )}
+                              <button
+                                onClick={() => addUnitFromElaboration(subject, elab, cat.key, 1, manualText)}
+                                disabled={addingElabKey === elab.key}
+                                title="Adds this idea to your Year Long Plan cart -- just the general idea for now, no need to work out the details yet. AI will combine everything you've added into full units on the next page."
+                                style={{ padding: '4px 10px', background: colors.text, color: '#fff', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                              >
+                                {addingElabKey === elab.key ? 'Adding…' : '+ Add to Year Long Plan'}
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -1072,7 +972,8 @@ export default function UnitsPage() {
                         )}
                       </div>
                     )
-                  })
+                  })}
+                  </>
                 ) : (
                   subjectUnits.map(renderUnitRow)
                 )
@@ -1084,6 +985,117 @@ export default function UnitsPage() {
         <button onClick={save} disabled={saving} style={{ padding: '10px 24px', background: C.gold, color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}>
           {saving ? 'Saving…' : 'Save Priorities'}
         </button>
+      </div>
+    </div>
+  )
+}
+
+// Subject-level, low-stakes catch-all: a point-form notes box for activities
+// a teacher always wants included (so nothing gets lost even if it doesn't
+// map neatly to an elaboration card), plus an entirely optional PDF upload
+// (e.g. a literacy guide they like using) for future reference. Nothing
+// here becomes a unit automatically -- it's just captured so it's available
+// when units get built on the next page. Debounced auto-save on the text
+// box; upload is immediate on file select.
+function LanguageArtsNotesPanel({ subject }) {
+  const [notesText, setNotesText] = useState('')
+  const [uploadedDocs, setUploadedDocs] = useState([])
+  const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
+  const saveTimer = useRef(null)
+
+  useEffect(() => {
+    fetch(`/api/activity-notes?subject=${encodeURIComponent(subject)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        setNotesText(d.notes?.notes_text || '')
+        setUploadedDocs(d.notes?.uploaded_docs || [])
+        setLoaded(true)
+      })
+      .catch(() => setLoaded(true))
+  }, [subject])
+
+  function handleNotesChange(value) {
+    setNotesText(value)
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(async () => {
+      setSaving(true)
+      try {
+        await fetch('/api/activity-notes', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subject, notes_text: value }),
+        })
+      } finally {
+        setSaving(false)
+      }
+    }, 800)
+  }
+
+  async function handleFileUpload(file) {
+    if (!file) return
+    setUploading(true)
+    setUploadError('')
+    try {
+      const formData = new FormData()
+      formData.append('subject', subject)
+      formData.append('file', file)
+      const res = await fetch('/api/activity-notes', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Upload failed')
+      setUploadedDocs(data.uploaded_docs || [])
+    } catch (e) {
+      setUploadError(e.message)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  if (!loaded) return null
+
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 8, padding: 12, marginBottom: 14 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 4 }}>
+        {subject} -- Activities You Want Included
+      </div>
+      <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px' }}>
+        Point form is fine. Anything you jot here gets carried through to unit building, even if it doesn't fit neatly into a card above.
+      </p>
+      <textarea
+        value={notesText}
+        onChange={(e) => handleNotesChange(e.target.value)}
+        placeholder={'e.g.\n- book bingo every June\n- weekly poetry Friday\n- our class always does a persuasive letter to the principal'}
+        rows={4}
+        style={{ width: '100%', fontSize: 12, padding: '8px 10px', border: `1px solid ${C.border}`, borderRadius: 6, boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }}
+      />
+      {saving && <div style={{ fontSize: 10, color: '#999', marginTop: 2 }}>Saving…</div>}
+
+      <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
+        <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>
+          Optional -- upload a PDF you like using (e.g. a literacy guide) for reference.
+        </div>
+        <label style={{
+          display: 'inline-block', fontSize: 11, fontWeight: 600, padding: '5px 12px',
+          background: '#f0eee7', color: C.navy, border: `1px solid ${C.border}`, borderRadius: 5, cursor: 'pointer',
+        }}>
+          {uploading ? 'Uploading…' : '📎 Upload PDF'}
+          <input
+            type="file"
+            accept="application/pdf"
+            onChange={(e) => handleFileUpload(e.target.files?.[0])}
+            disabled={uploading}
+            style={{ display: 'none' }}
+          />
+        </label>
+        {uploadError && <div style={{ fontSize: 11, color: '#a33', marginTop: 4 }}>{uploadError}</div>}
+        {uploadedDocs.length > 0 && (
+          <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 11, color: '#555' }}>
+            {uploadedDocs.map((doc, i) => (
+              <li key={i}>{doc.filename}</li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   )
