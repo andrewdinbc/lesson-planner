@@ -23,6 +23,7 @@ import { getCurrentUser } from '@/lib/session'
 import { sbSelect, sbInsert } from '@/lib/supabase'
 import { buildSteeringContext } from '@/lib/steering-context'
 import { CURRICULUM_ELABORATIONS, ELABORATIONS_SUBJECT_MAP } from '@/lib/curriculum-full-elaborations'
+import { dialValuesToPromptText } from '@/lib/style-dials'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -62,7 +63,7 @@ Content: ${curriculumGrade.content.join(' | ')}`
     try { steeringContext = await buildSteeringContext() } catch { /* optional */ }
 
     const styleBlock = profile
-      ? `Style/genre to write in (format, tone, pacing -- NOT content to copy): ${profile.blended_style_text}`
+      ? `Style/genre to write in (format, tone, pacing -- NOT content to copy): ${profile.blended_style_text}\n${dialValuesToPromptText(profile.dial_values)}`
       : 'No specific style profile selected -- use clear, grade-appropriate, engaging style.'
 
     const prompt = `You are writing WHOLLY ORIGINAL instructional content for a teaching resource. This content must be entirely your own creation -- do not reference or reproduce any existing published resource's specific questions, passages, or exercises.

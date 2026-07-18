@@ -1,6 +1,7 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { COLORS as C, FONT_BODY } from '@/lib/theme'
+import { STYLE_DIALS, defaultDialValues } from '@/lib/style-dials'
 
 // Project Forge (Aj, 2026-07-17): every PDF or URL a teacher uploads while
 // building resources for a unit lands here too. Take the best parts, edit
@@ -114,6 +115,23 @@ export default function ForgePage() {
     } finally {
       setProfileBusyId(null)
     }
+  }
+
+  const dialSaveTimers = useRef({})
+
+  function updateDial(profile, dialKey, value) {
+    const currentDials = { ...(profile.dial_values || defaultDialValues()), [dialKey]: value }
+    setProfiles((prev) => prev.map((p) => (p.id === profile.id ? { ...p, dial_values: currentDials } : p)))
+
+    if (dialSaveTimers.current[profile.id]) clearTimeout(dialSaveTimers.current[profile.id])
+    dialSaveTimers.current[profile.id] = setTimeout(async () => {
+      try {
+        await fetch('/api/style-profiles', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'update_dials', id: profile.id, dialValues: currentDials }),
+        })
+      } catch { /* transient save failure -- slider still reflects the change locally */ }
+    }, 500)
   }
 
   async function generateOriginalContent(profile) {
@@ -309,6 +327,29 @@ export default function ForgePage() {
               >
                 {p.pushed_to_steering_doc_id ? '✓ In AI Steering' : '→ Push to AI Steering'}
               </button>
+
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #e6e0d5' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.navy, marginBottom: 8 }}>
+                  🎛️ Fine-tune this blend
+                </div>
+                {STYLE_DIALS.map((dial) => {
+                  const value = (p.dial_values || defaultDialValues())[dial.key]
+                  return (
+                    <div key={dial.key} style={{ marginBottom: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#888', marginBottom: 2 }}>
+                        <span>{dial.loLabel}</span>
+                        <span style={{ fontWeight: 700, color: '#2f6b41' }}>{dial.label}</span>
+                        <span>{dial.hiLabel}</span>
+                      </div>
+                      <input
+                        type="range" min={0} max={100} value={value}
+                        onChange={(e) => updateDial(p, dial.key, Number(e.target.value))}
+                        style={{ width: '100%', accentColor: '#2f6b41' }}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
 
               <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #e6e0d5' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: C.navy, marginBottom: 4 }}>

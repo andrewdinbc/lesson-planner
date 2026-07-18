@@ -28,6 +28,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { getCurrentUser } from '@/lib/session'
 import { sbSelect, sbUpdate } from '@/lib/supabase'
+import { STYLE_DIALS } from '@/lib/style-dials'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -42,6 +43,8 @@ export async function POST(request) {
     if (!row) return Response.json({ error: 'Not found' }, { status: 404 })
 
     const text = (row.edited_text || row.original_text || '').slice(0, 8000)
+
+    const dialList = STYLE_DIALS.map((d) => `- ${d.key}: 0 = "${d.loLabel}", 100 = "${d.hiLabel}"`).join('\n')
 
     const prompt = `You are analyzing a teaching resource to extract its STYLE and FORMAT only, broken into layers -- never its actual content.
 
@@ -60,16 +63,21 @@ For each layer below, describe the ABSTRACT PATTERN only -- never specific facts
 - extension: format of any early-finisher/enrichment provision (e.g. "includes a challenge tier") -- not the actual challenge content
 - digital: what digital format(s) exist as a plain fact (e.g. "has a Google Slides version") -- format only
 
+Additionally, estimate a 0-100 value for each of these style dials, based purely on structural/tonal impressions (not content):
+${dialList}
+If you can't confidently estimate a dial from this text, use 50 (neutral).
+
 Respond with ONLY JSON, no markdown fences:
-{"visuals": "...", "structure": "...", "interaction": "...", "assessmentFormat": "...", "teacherDirections": "...", "studentDirections": "...", "extension": "...", "digital": "..."}`
+{"visuals": "...", "structure": "...", "interaction": "...", "assessmentFormat": "...", "teacherDirections": "...", "studentDirections": "...", "extension": "...", "digital": "...", "dials": {${STYLE_DIALS.map((d) => `"${d.key}": 0`).join(', ')}}}`
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-5',
-      max_tokens: 900,
+      max_tokens: 1100,
       messages: [{ role: 'user', content: prompt }],
     })
     const raw = response.content.find((b) => b.type === 'text')?.text || '{}'
-    const layers = JSON.parse(raw.replace(/```json|```/g, '').trim())
+    const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim())
+    const { dials, ...layers } = parsed
 
     // Keep style_notes (flat summary) alongside layer_notes for anywhere
     // still reading the flat field, but layer_notes is the source of truth
@@ -77,10 +85,10 @@ Respond with ONLY JSON, no markdown fences:
     const flatSummary = Object.entries(layers).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(' ')
 
     await sbUpdate('forge_resources', `?id=eq.${id}&user_id=eq.${user.id}`, {
-      layer_notes: layers, style_notes: flatSummary, updated_at: new Date().toISOString(),
+      layer_notes: layers, style_notes: flatSummary, dial_estimates: dials || null, updated_at: new Date().toISOString(),
     })
 
-    return Response.json({ layers, styleNotes: flatSummary })
+    return Response.json({ layers, styleNotes: flatSummary, dials })
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 })
   }

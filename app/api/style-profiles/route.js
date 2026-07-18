@@ -9,6 +9,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { getCurrentUser } from '@/lib/session'
 import { sbSelect, sbInsert, sbUpdate } from '@/lib/supabase'
+import { averageDialEstimates, defaultDialValues } from '@/lib/style-dials'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -27,12 +28,25 @@ export async function POST(request) {
   const user = await getCurrentUser()
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
   try {
-    const { name, resourceIds, personalTwist } = await request.json()
+    const body = await request.json()
+
+    // Slider fine-tuning: update just the dial_values on an existing
+    // profile -- no AI call needed, this is a direct manual override.
+    if (body.action === 'update_dials') {
+      const { id, dialValues } = body
+      if (!id || !dialValues) return Response.json({ error: 'id and dialValues are required' }, { status: 400 })
+      await sbUpdate('style_profiles', `?id=eq.${id}&user_id=eq.${user.id}`, { dial_values: dialValues, updated_at: new Date().toISOString() })
+      return Response.json({ ok: true })
+    }
+
+    const { name, resourceIds, personalTwist } = body
     if (!name || !resourceIds?.length) return Response.json({ error: 'name and resourceIds are required' }, { status: 400 })
 
-    const resources = await sbSelect('forge_resources', `?user_id=eq.${user.id}&id=in.(${resourceIds.join(',')})&select=title,style_notes`)
+    const resources = await sbSelect('forge_resources', `?user_id=eq.${user.id}&id=in.(${resourceIds.join(',')})&select=title,style_notes,dial_estimates`)
     const withNotes = resources.filter((r) => r.style_notes)
     if (!withNotes.length) return Response.json({ error: 'None of the selected resources have extracted style patterns yet -- extract a style pattern from each one first.' }, { status: 400 })
+
+    const dialValues = averageDialEstimates(resources.map((r) => r.dial_estimates).filter(Boolean))
 
     const prompt = `You are blending multiple abstract STYLE patterns (structure, tone, pacing, format -- never content) into one coherent, named "genre feel" for a teacher's original resources.
 
@@ -56,6 +70,7 @@ Respond with ONLY JSON, no markdown fences:
 
     const [profile] = await sbInsert('style_profiles', [{
       user_id: user.id, name, blended_style_text: blendedStyle, source_resource_ids: resourceIds,
+      dial_values: dialValues || defaultDialValues(),
     }])
 
     return Response.json({ profile })

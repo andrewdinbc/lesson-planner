@@ -6,6 +6,7 @@
 // document.
 import { getCurrentUser } from '@/lib/session'
 import { sbSelect, sbInsert, sbUpdate } from '@/lib/supabase'
+import { dialValuesToPromptText } from '@/lib/style-dials'
 
 export async function POST(request) {
   const user = await getCurrentUser()
@@ -17,7 +18,8 @@ export async function POST(request) {
     const [profile] = await sbSelect('style_profiles', `?id=eq.${id}&user_id=eq.${user.id}&select=*`)
     if (!profile) return Response.json({ error: 'Not found' }, { status: 404 })
 
-    const fullText = `STYLE/GENRE PREFERENCE (not content to reproduce -- write ORIGINAL material in this style): ${profile.blended_style_text}`
+    const dialText = dialValuesToPromptText(profile.dial_values)
+    const fullText = `STYLE/GENRE PREFERENCE (not content to reproduce -- write ORIGINAL material in this style): ${profile.blended_style_text}${dialText ? `\n${dialText}` : ''}`
 
     const [doc] = await sbInsert('steering_documents', [{
       user_id: user.id,
