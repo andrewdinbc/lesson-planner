@@ -5,7 +5,7 @@ import { COLORS as C, FONT_BODY } from '@/lib/theme'
 import { reorderWithinSubject } from '@/lib/unit-priorities'
 import { ASSESSMENT_TYPES, currentInstructionalWeek, reminderStatus } from '@/lib/assessment-types'
 import { LA_CATEGORIES, categorizeLA } from '@/lib/language-arts-categories'
-import { LA_ELABORATIONS, elaborationsForCategory, BALANCED_LITERACY_FRAMEWORK } from '@/lib/la-elaborations'
+import { BALANCED_LITERACY_FRAMEWORK } from '@/lib/la-elaborations'
 import { getElaborationsForGrades } from '@/lib/curriculum-full-elaborations'
 const ALWAYS_HIGH_SCRUTINY = ['Language Arts', 'Mathematics']
 // Distinct color per Language Arts section so Reading/Writing/Oral read as
@@ -857,24 +857,11 @@ export default function UnitsPage() {
                     // selected for this category -- no buffer above/below, per Aj's
                     // request to see only what's discussed at the selected grade(s).
                     const ministryBand = catGradesArr.length > 0 ? getElaborationsForGrades('Language Arts', catGradesArr, 0, 0) : null
-                    const ministryElabItems = (ministryBand?.entries || []).flatMap((entry) =>
-                      entry.elaborations.map((e) => ({
-                        key: `ministry::${cat.key}::${entry.grade}::${e.term.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-                        label: e.term,
-                        description: e.detail,
-                        covers: [cat.key],
-                        grade: entry.grade,
-                        source: 'ministry',
-                      }))
-                    )
-                    const catElaborations = [...elaborationsForCategory(cat.key), ...ministryElabItems]
 
                     // Same "already in the cart?" check applies no matter which tab
-                    // (Activities / Content / Curricular Competency) an item came
-                    // from -- all three tabs feed the exact same Year Long Plan cart.
+                    // (Content / Curricular Competency) an item came from -- both
+                    // tabs feed the exact same Year Long Plan cart.
                     const isElabCovered = (elab) => catUnits.some((u) => u.source_elaboration_key === elab.key || u.unit_name.toLowerCase() === elab.label.toLowerCase())
-                    const coveredElabs = catElaborations.filter(isElabCovered)
-                    const gapElabs = catElaborations.filter((e) => !isElabCovered(e))
 
                     // Content topic items, narrowed to the selected grade(s), also
                     // addable to the same cart.
@@ -957,7 +944,6 @@ export default function UnitsPage() {
                     const TABS = [
                       { key: 'content', label: `Content (${contentItems.length})` },
                       { key: 'competency', label: `Curricular Competency` },
-                      { key: 'activities', label: `Activities (${catElaborations.length})` },
                     ]
 
                     return (
@@ -968,7 +954,7 @@ export default function UnitsPage() {
                               {cat.label}
                             </h3>
 
-                            {/* Teacher picks the starting point -- Activities (Elaboration ideas), Content, or Curricular Competency. All three add to the same cart. */}
+                            {/* Content or Curricular Competency -- both add to the same cart. Activities/strategies/routines moved off this page; they belong on the next page where units actually get built. */}
                             <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
                               {TABS.map((tab) => (
                                 <button
@@ -986,16 +972,6 @@ export default function UnitsPage() {
                                 </button>
                               ))}
                             </div>
-
-                            {startingView === 'activities' && (
-                              <div style={{ marginBottom: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                {coveredElabs.map((elab) => elabCard(elab, false))}
-                                {gapElabs.map((elab) => elabCard(elab, true))}
-                                {catElaborations.length === 0 && (
-                                  <p style={{ fontSize: 12, color: colors.text, opacity: 0.6, margin: 0 }}>No Elaboration ideas for this section yet.</p>
-                                )}
-                              </div>
-                            )}
 
                             {startingView === 'content' && (
                               <div style={{ marginBottom: 4 }}>
