@@ -11,6 +11,7 @@ const STATUS_LABELS = {
   edited: { label: 'Edited', color: '#a06b1f' },
   pushed_to_steering: { label: '✓ Live in AI Steering', color: '#1a7a3e' },
   marked_for_tpt: { label: '🏷 Marked for TPT', color: '#7a3c8a' },
+  tpt_package_ready: { label: '📦 TPT Package Ready', color: '#7a3c8a' },
   published_tpt: { label: '✓ Published on TPT', color: '#1a7a3e' },
 }
 
@@ -59,6 +60,36 @@ export default function ForgePage() {
     } finally {
       setBusyId(null)
     }
+  }
+
+  async function generateTptPackage(r) {
+    setBusyId(r.id)
+    try {
+      const res = await fetch('/api/forge/generate-tpt-package', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: r.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setResources((prev) => prev.map((x) => (x.id === r.id ? { ...x, status: 'tpt_package_ready', tpt_package: data.tpt_package } : x)))
+    } catch (e) {
+      alert(`Couldn't generate TPT package: ${e.message}`)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  function downloadTptPackage(r) {
+    const p = r.tpt_package
+    if (!p) return
+    const text = `PRODUCT TITLE\n${p.productTitle}\n\nDESCRIPTION\n${p.description}\n\nPREVIEW BLURB\n${p.previewBlurb}\n\nSUGGESTED TAGS\n${(p.suggestedTags || []).join(', ')}\n\nSUGGESTED PRICE RANGE\n${p.suggestedPriceRange}\n\n--- SELLER NOTE (not for the public listing) ---\n${p.sellerNote}\n`
+    const blob = new Blob([text], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${(r.title || 'tpt-package').replace(/[^a-z0-9]+/gi, '-')}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   if (loading) return <div style={{ padding: 40, fontFamily: FONT_BODY }}>Loading…</div>
@@ -112,12 +143,41 @@ export default function ForgePage() {
                 {r.status === 'pushed_to_steering' ? '✓ In AI Steering' : '→ Push to AI Steering'}
               </button>
               <button
-                onClick={() => runAction(r, 'mark_for_tpt')} disabled={busyId === r.id || r.status === 'marked_for_tpt'}
-                style={{ padding: '5px 12px', background: '#7a3c8a', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: r.status === 'marked_for_tpt' ? 'default' : 'pointer', opacity: r.status === 'marked_for_tpt' ? 0.6 : 1 }}
+                onClick={() => runAction(r, 'mark_for_tpt')} disabled={busyId === r.id || ['marked_for_tpt', 'tpt_package_ready'].includes(r.status)}
+                style={{ padding: '5px 12px', background: '#7a3c8a', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: ['marked_for_tpt', 'tpt_package_ready'].includes(r.status) ? 'default' : 'pointer', opacity: ['marked_for_tpt', 'tpt_package_ready'].includes(r.status) ? 0.6 : 1 }}
               >
-                {r.status === 'marked_for_tpt' ? '🏷 Marked for TPT' : '🏷 Mark for TPT'}
+                {['marked_for_tpt', 'tpt_package_ready'].includes(r.status) ? '🏷 Marked for TPT' : '🏷 Mark for TPT'}
               </button>
+              {['marked_for_tpt', 'tpt_package_ready'].includes(r.status) && (
+                <button
+                  onClick={() => generateTptPackage(r)} disabled={busyId === r.id}
+                  style={{ padding: '5px 12px', background: '#fff', border: '1px solid #7a3c8a', color: '#7a3c8a', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  {busyId === r.id ? 'Generating…' : r.tpt_package ? '↻ Regenerate TPT Package' : '📦 Generate TPT Package'}
+                </button>
+              )}
             </div>
+
+            {r.tpt_package && (
+              <div style={{ marginTop: 10, background: '#f5eafa', border: '1px solid #d9b8e8', borderRadius: 6, padding: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#7a3c8a', marginBottom: 6 }}>TPT Listing Prep -- copy/paste into your TPT listing form</div>
+                <div style={{ fontSize: 11, color: '#444', marginBottom: 4 }}><strong>Title:</strong> {r.tpt_package.productTitle}</div>
+                <div style={{ fontSize: 11, color: '#444', marginBottom: 4, whiteSpace: 'pre-wrap' }}><strong>Description:</strong> {r.tpt_package.description}</div>
+                <div style={{ fontSize: 11, color: '#444', marginBottom: 4 }}><strong>Preview blurb:</strong> {r.tpt_package.previewBlurb}</div>
+                <div style={{ fontSize: 11, color: '#444', marginBottom: 4 }}><strong>Tags:</strong> {(r.tpt_package.suggestedTags || []).join(', ')}</div>
+                <div style={{ fontSize: 11, color: '#444', marginBottom: 8 }}><strong>Suggested price:</strong> {r.tpt_package.suggestedPriceRange}</div>
+                <div style={{ fontSize: 10, color: '#888', fontStyle: 'italic', marginBottom: 8 }}>Seller note (not part of the listing): {r.tpt_package.sellerNote}</div>
+                <button
+                  onClick={() => downloadTptPackage(r)}
+                  style={{ padding: '5px 12px', background: '#7a3c8a', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  ⬇ Download as .txt
+                </button>
+                <p style={{ fontSize: 10, color: '#999', marginTop: 6, marginBottom: 0 }}>
+                  There's no automatic publishing to TPT -- you still create and publish the actual listing yourself on teacherspayteachers.com. This is prep copy only.
+                </p>
+              </div>
+            )}
           </div>
         )
       })}

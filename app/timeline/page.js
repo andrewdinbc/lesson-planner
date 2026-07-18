@@ -136,6 +136,9 @@ export default function TimelinePage() {
         <p style={{ color: '#666', fontSize: 13, marginTop: 0, maxWidth: 640 }}>
           Each row is a subject. Drag a block to move it, or drag its edges to resize. Subjects don't need to run the whole year — leave gaps, or run one subject only half the year and hand the rest to another. Come back and adjust this anytime.
         </p>
+        <p style={{ color: '#999', fontSize: 12, marginTop: -6 }}>
+          📎 = resources added &nbsp; 📋 = assessment practices added
+        </p>
 
         {blocks.length === 0 && (
           <div style={{ background: '#fdf3e3', border: '1px solid #e8c88a', borderRadius: 8, padding: 16, marginBottom: 16, fontSize: 13, color: '#7a5a1e' }}>
@@ -206,6 +209,10 @@ export default function TimelinePage() {
                         />
                         <span style={{ fontSize: 11, color: '#fff', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {b.unit_name}
+                        </span>
+                        <span style={{ marginLeft: 'auto', display: 'flex', gap: 3, flexShrink: 0, paddingRight: 10 }}>
+                          {b.has_resources && <span title="Has resources" style={{ fontSize: 10 }}>📎</span>}
+                          {b.has_assessment && <span title="Has assessment practices" style={{ fontSize: 10 }}>📋</span>}
                         </span>
                         <div
                           onMouseDown={(e) => startDrag(e, b, 'resize-right')}

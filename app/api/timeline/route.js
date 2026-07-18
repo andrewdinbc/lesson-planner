@@ -4,7 +4,10 @@ import { getCurrentUser } from '@/lib/session'
 import { seedTimelineFromUnits } from '@/lib/timeline'
 
 // GET: fetch this teacher's timeline blocks, seeding from their
-// unit_priorities rows on first load if they have none yet.
+// unit_priorities rows on first load if they have none yet. Also enriches
+// each block with has_resources/has_assessment flags (cross-referenced
+// from unit_priorities by subject+unit_name) so the timeline can show
+// progress through the Content -> Resources -> Assessment flow visually.
 export async function GET(request) {
   const user = await getCurrentUser()
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 })
@@ -22,7 +25,18 @@ export async function GET(request) {
       }
     }
 
-    return Response.json({ blocks: rows, totalWeeks })
+    const unitRows = await sbSelect('unit_priorities', `?user_id=eq.${user.id}&select=subject,unit_name,resources,assessment_practices`)
+    const progressByKey = new Map(unitRows.map((u) => [`${u.subject}::${u.unit_name}`, {
+      has_resources: (u.resources || []).length > 0,
+      has_assessment: (u.assessment_practices || []).length > 0,
+    }]))
+    const enriched = rows.map((b) => ({
+      ...b,
+      has_resources: progressByKey.get(`${b.subject}::${b.unit_name}`)?.has_resources || false,
+      has_assessment: progressByKey.get(`${b.subject}::${b.unit_name}`)?.has_assessment || false,
+    }))
+
+    return Response.json({ blocks: enriched, totalWeeks })
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 })
   }
