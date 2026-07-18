@@ -181,11 +181,11 @@ export default function UnitsPage() {
     if (!feedbackText.trim()) return
     setFeedbackStatus('sending')
     try {
-      const res = await fetch('/api/feedback', {
+      const res = await fetch('/api/auto-preference', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requestText: feedbackText, pageContext: 'unit-priorities' }),
+        body: JSON.stringify({ preferenceText: feedbackText, pageContext: 'unit-priorities' }),
       })
-      if (!res.ok) throw new Error('Failed to send')
+      if (!res.ok) throw new Error('Failed to save')
       setFeedbackText('')
       setFeedbackStatus('sent')
       setTimeout(() => setFeedbackStatus('idle'), 4000)
@@ -549,14 +549,14 @@ export default function UnitsPage() {
 
           <div style={{ marginTop: 12, background: '#fff', border: `1px solid ${C.border}`, borderRadius: 8, padding: 14 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 6 }}>
-              Something missing or not quite right?
+              Want something to always happen automatically?
             </div>
             <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px' }}>
-              Tell us what's off (e.g. "missing my Grade 5 fractions unit") -- this goes straight to Aj so it can be reviewed and improved.
+              Type it below (e.g. "always include a Grade 5 fractions unit" or "keep spelling lists tied to our phonics scope and sequence"). This becomes a standing preference immediately -- no review step -- and every AI-generated plan from here on will take it into account.
             </p>
             <textarea
               value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} rows="2"
-              placeholder="Describe what should be added or fixed…"
+              placeholder="Describe the standing preference you want applied automatically…"
               style={{ width: '100%', padding: 8, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: 'inherit', fontSize: 13, boxSizing: 'border-box', resize: 'vertical' }}
             />
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
@@ -568,10 +568,10 @@ export default function UnitsPage() {
                   opacity: feedbackText.trim() ? 1 : 0.5,
                 }}
               >
-                {feedbackStatus === 'sending' ? 'Sending…' : 'Send Feedback'}
+                {feedbackStatus === 'sending' ? 'Saving…' : 'Apply Automatically'}
               </button>
-              {feedbackStatus === 'sent' && <span style={{ fontSize: 12, color: '#1a7a3e' }}>✓ Sent — thank you!</span>}
-              {feedbackStatus === 'error' && <span style={{ fontSize: 12, color: '#a33' }}>Couldn't send — try again.</span>}
+              {feedbackStatus === 'sent' && <span style={{ fontSize: 12, color: '#1a7a3e' }}>✓ Saved — this is live now.</span>}
+              {feedbackStatus === 'error' && <span style={{ fontSize: 12, color: '#a33' }}>Couldn't save — try again.</span>}
             </div>
           </div>
         </div>
@@ -844,7 +844,7 @@ export default function UnitsPage() {
                       return cats.includes(cat.key)
                     })
                     const colors = LA_CAT_COLORS[cat.key]
-                    const startingView = laStartingView[cat.key] || 'activities' // teacher picks which view opens first: Activities, Content, or Curricular Competency
+                    const startingView = laStartingView[cat.key] || 'content' // Content is the entry point now -- go through Content, approve, move on; Activities is deferred to the next page
                     const catGradesArr = [...new Set(catUnits.flatMap((u) => u.grades || []))]
                     const grade = catGradesArr.join('/') || null
                     // Only one Language Arts section is open at a time -- Reading first
@@ -955,9 +955,9 @@ export default function UnitsPage() {
                     }
 
                     const TABS = [
-                      { key: 'activities', label: `Activities (${catElaborations.length})` },
                       { key: 'content', label: `Content (${contentItems.length})` },
                       { key: 'competency', label: `Curricular Competency` },
+                      { key: 'activities', label: `Activities (${catElaborations.length})` },
                     ]
 
                     return (
