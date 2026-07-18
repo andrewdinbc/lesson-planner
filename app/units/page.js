@@ -67,10 +67,8 @@ export default function UnitsPage() {
   const [aiBuildingKey, setAiBuildingKey] = useState(null) // elab.key currently running "AI build me this unit"
   const [creativeBuildingKey, setCreativeBuildingKey] = useState(null) // elab.key currently running "AI: creative way to cover this"
   const [laStartingView, setLaStartingView] = useState({}) // LA category key -> 'activities' | 'content' | 'competency', default 'activities'
-  const [openCoverage, setOpenCoverage] = useState({}) // unit key -> bool, "What does this cover?" toggle
   const [occurrenceCounts, setOccurrenceCounts] = useState({}) // `${cat.key}::${elab.key}` -> number, how many instances to create at once (e.g. 3 Novel Studies this year)
   const [manualApproach, setManualApproach] = useState({}) // `${cat.key}::${elab.key}` -> string, teacher's own way to cover a gap instead of AI inventing one
-  const [showManualInput, setShowManualInput] = useState({}) // `${cat.key}::${elab.key}` -> bool
   const [splitClassEnabled, setSplitClassEnabled] = useState(false) // A/B year rotation -- half the content is covered each year
   const [activeRotationYear, setActiveRotationYear] = useState('A')
   const [savingSplitClass, setSavingSplitClass] = useState(false)
@@ -915,50 +913,28 @@ export default function UnitsPage() {
                     const gapElabs = catElaborations.filter((e) => !isElabCovered(e))
 
                     const elabCard = (elab, isGap) => {
-                      const coverageOpen = openCoverage[`elab::${elab.key}`]
                       const countKey = `${cat.key}::${elab.key}`
                       const count = occurrenceCounts[countKey] || 1
-                      const manualOpen = showManualInput[countKey]
                       const manualText = manualApproach[countKey] || ''
                       return (
                         <div key={elab.key} style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 6, padding: '8px 10px' }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: 12, fontWeight: 700, color: C.navy }}>{elab.label}</div>
-                              <button
-                                type="button"
-                                onClick={() => setOpenCoverage((prev) => ({ ...prev, [`elab::${elab.key}`]: !prev[`elab::${elab.key}`] }))}
-                                style={{ background: 'none', border: 'none', color: colors.text, fontSize: 10, fontWeight: 600, cursor: 'pointer', padding: 0, marginTop: 3, textDecoration: 'underline' }}
-                              >
-                                👁 {coverageOpen ? 'Hide' : 'What does this cover?'}
-                              </button>
-                              {coverageOpen && (
-                                <div style={{ marginTop: 4 }}>
-                                  <div style={{ fontSize: 10, color: '#999' }}>
-                                    Covers: {elab.covers.map((c) => LA_CATEGORIES.find((x) => x.key === c)?.label).join(', ')}
-                                  </div>
-                                  <p style={{ fontSize: 11, color: '#666', margin: '3px 0 0' }}>{elab.description}</p>
+                              <div style={{ marginTop: 3 }}>
+                                <div style={{ fontSize: 10, color: '#999' }}>
+                                  Covers: {elab.covers.map((c) => LA_CATEGORIES.find((x) => x.key === c)?.label).join(', ')}
                                 </div>
-                              )}
+                                <p style={{ fontSize: 11, color: '#666', margin: '3px 0 0' }}>{elab.description}</p>
+                              </div>
                               {isGap && (
                                 <div style={{ marginTop: 6 }}>
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowManualInput((prev) => ({ ...prev, [countKey]: !prev[countKey] }))}
-                                    style={{ background: 'none', border: 'none', color: colors.text, fontSize: 10, fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
-                                  >
-                                    {manualOpen ? '✕ Cancel' : '✏️ Or type your own way to cover this'}
-                                  </button>
-                                  {manualOpen && (
-                                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                                      <input
-                                        value={manualText}
-                                        onChange={(e) => setManualApproach((prev) => ({ ...prev, [countKey]: e.target.value }))}
-                                        placeholder={`e.g. "book club with student-led discussion questions"`}
-                                        style={{ flex: 1, fontSize: 11, padding: '5px 8px', border: `1px solid ${colors.border}`, borderRadius: 5 }}
-                                      />
-                                    </div>
-                                  )}
+                                  <input
+                                    value={manualText}
+                                    onChange={(e) => setManualApproach((prev) => ({ ...prev, [countKey]: e.target.value }))}
+                                    placeholder={`Or type your own way to cover this -- e.g. "Hatchet novel study"`}
+                                    style={{ width: '100%', fontSize: 11, padding: '5px 8px', border: `1px solid ${colors.border}`, borderRadius: 5, boxSizing: 'border-box' }}
+                                  />
                                 </div>
                               )}
                             </div>
