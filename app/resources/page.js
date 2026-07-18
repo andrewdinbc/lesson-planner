@@ -11,7 +11,9 @@ import { LA_CATEGORIES, categorizeLA } from '@/lib/language-arts-categories'
 // separate from Content -- resources are HOW you cover something, not
 // WHAT you're covering.
 //
-// Every PDF upload or URL also lands in Project Forge (app/forge) for
+// Every PDF upload or URL also lands in Project Forge (a separate app --
+// project-forge, https://project-forge-omega.vercel.app -- Style Lab
+// section) for
 // editing/remixing and later graduation into AI steering docs or a TPT
 // listing -- see /api/units/upload-resource and /api/units/add-url-resource.
 const LA_CAT_COLORS = {
@@ -143,7 +145,7 @@ export default function ResourcesPage() {
                 {r.type === 'teacher_upload' && (
                   <span style={{ fontSize: 9, color: '#888', marginLeft: 6 }}>
                     {r.source_url ? 'from URL' : 'uploaded'} —{' '}
-                    {r.forge_resource_id ? <a href="/forge" style={{ color: '#7a3c8a' }}>edit in Forge</a> : 'in Forge'}
+                    {r.forge_resource_id ? <a href="https://project-forge-omega.vercel.app/dashboard/style-lab" target="_blank" rel="noreferrer" style={{ color: '#7a3c8a' }}>edit in Style Lab</a> : 'in Forge'}
                   </span>
                 )}
                 {r.detail && <div style={{ fontSize: 11, color: '#777' }}>{r.detail.slice(0, 200)}{r.detail.length > 200 ? '…' : ''}</div>}
@@ -204,7 +206,7 @@ export default function ResourcesPage() {
         Step 2 of 3. For each unit you approved, upload the resources you already use, paste a link, or have AI suggest some grounded in your steering documents. Assessment practices come next.
       </p>
       <p style={{ fontSize: 12, color: '#888', marginBottom: 20 }}>
-        Anything you upload or link also lands in <a href="/forge" style={{ color: C.gold, fontWeight: 600 }}>Project Forge</a> -- edit it down to the best parts, then push it into AI Steering or mark it for a future TPT listing.
+        Anything you upload or link also lands in <a href="https://project-forge-omega.vercel.app/dashboard/style-lab" target="_blank" rel="noreferrer" style={{ color: C.gold, fontWeight: 600 }}>Style Lab</a> (part of the Project Forge app) -- edit it down to the best parts, then push it into AI Steering or mark it for a future TPT listing.
       </p>
 
       {Object.entries(bySubject).map(([subject, subjectUnits]) => {
