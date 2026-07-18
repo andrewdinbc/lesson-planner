@@ -123,11 +123,11 @@ export default function ForgePage() {
     try {
       const res = await fetch('/api/style-profiles/generate-content', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ styleProfileId: profile.id, subject: draft.subject, grade: draft.grade, topic: draft.topic }),
+        body: JSON.stringify({ styleProfileId: profile.id, subject: draft.subject, grade: draft.grade, topic: draft.topic, jurisdiction: draft.jurisdiction }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setContentDraft((prev) => ({ ...prev, [profile.id]: { ...draft, result: data.content } }))
+      setContentDraft((prev) => ({ ...prev, [profile.id]: { ...draft, result: data.content, curriculumConfidence: data.curriculumConfidence, resultJurisdiction: data.jurisdiction } }))
       // Refresh resources so the newly generated item shows up in Forge.
       const r2 = await fetch('/api/forge')
       const d2 = await r2.json()
@@ -334,6 +334,15 @@ export default function ForgePage() {
                   </select>
                 </div>
                 <input
+                  placeholder="Curriculum jurisdiction -- e.g. 'British Columbia, Canada', 'Ontario, Canada', 'Texas, USA', 'Australia'"
+                  value={contentDraft[p.id]?.jurisdiction || ''}
+                  onChange={(e) => setContentDraft((prev) => ({ ...prev, [p.id]: { ...prev[p.id], jurisdiction: e.target.value } }))}
+                  style={{ width: '100%', fontSize: 12, padding: '5px 8px', border: `1px solid ${C.border}`, borderRadius: 5, marginBottom: 6, boxSizing: 'border-box' }}
+                />
+                <p style={{ fontSize: 9, color: '#aaa', margin: '-4px 0 6px' }}>
+                  Defaults to British Columbia, Canada if left blank. BC content is grounded in scraped Ministry data; other jurisdictions rely on general model knowledge of that region's standards -- worth double-checking against the official curriculum document.
+                </p>
+                <input
                   placeholder="Optional topic/focus"
                   value={contentDraft[p.id]?.topic || ''}
                   onChange={(e) => setContentDraft((prev) => ({ ...prev, [p.id]: { ...prev[p.id], topic: e.target.value } }))}
@@ -349,6 +358,11 @@ export default function ForgePage() {
                   <div style={{ marginTop: 8, background: '#f7f5f0', border: `1px solid ${C.border}`, borderRadius: 6, padding: 8 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: C.navy }}>{contentDraft[p.id].result.title}</div>
                     <p style={{ fontSize: 10, color: '#1a7a3e', margin: '2px 0 6px' }}>✓ Saved to Forge as a new, wholly original resource</p>
+                    {contentDraft[p.id].curriculumConfidence === 'general_knowledge' && (
+                      <p style={{ fontSize: 10, color: '#a06b1f', margin: '0 0 6px' }}>
+                        ⚠ {contentDraft[p.id].resultJurisdiction} isn't grounded in scraped official curriculum data -- based on general knowledge, worth double-checking against the real standard.
+                      </p>
+                    )}
                     <ul style={{ margin: 0, paddingLeft: 16, fontSize: 11, color: '#555' }}>
                       {contentDraft[p.id].result.items.map((item, i) => (
                         <li key={i} style={{ marginBottom: 3 }}><em>[{item.type}]</em> {item.text}</li>
