@@ -149,9 +149,15 @@ export default function TimelinePage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
           <span style={{ fontSize: 12, color: '#888' }}>{totalWeeks} instructional weeks</span>
           {saving && <span style={{ fontSize: 12, color: '#888' }}>Saving…</span>}
+          <a
+            href="/print/unit-planner"
+            style={{ marginLeft: 'auto', padding: '6px 14px', background: C.gold, color: '#fff', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}
+          >
+            🖨️ Print / Download PDF
+          </a>
           <button
             onClick={resetToPriorities} disabled={resetting}
-            style={{ marginLeft: 'auto', padding: '6px 14px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, color: '#888', cursor: 'pointer' }}
+            style={{ padding: '6px 14px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, color: '#888', cursor: 'pointer' }}
           >
             {resetting ? 'Resetting…' : 'Reset to Priorities'}
           </button>
