@@ -998,11 +998,32 @@ export default function UnitsPage() {
                             )}
 
                             {startingView === 'content' && (
-                              <div style={{ marginBottom: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                {coveredContent.map((elab) => elabCard(elab, false))}
-                                {gapContent.map((elab) => elabCard(elab, true))}
+                              <div style={{ marginBottom: 4 }}>
                                 {contentItems.length === 0 && (
                                   <p style={{ fontSize: 12, color: colors.text, opacity: 0.6, margin: 0 }}>No grade(s) selected for this section yet -- add a unit with a grade first, or use the Activities tab.</p>
+                                )}
+                                {contentItems.length > 0 && (
+                                  <ul style={{ margin: 0, paddingLeft: 20, listStyle: 'disc' }}>
+                                    {[...coveredContent, ...gapContent].map((item) => {
+                                      const added = isElabCovered(item)
+                                      return (
+                                        <li key={item.key} style={{ fontSize: 13, color: added ? '#999' : '#333', lineHeight: 1.6, marginBottom: 2 }}>
+                                          <span style={{ textDecoration: added ? 'line-through' : 'none' }}>{item.label}</span>
+                                          {added ? (
+                                            <span style={{ fontSize: 11, color: '#1a7a3e', marginLeft: 8 }}>✓ added</span>
+                                          ) : (
+                                            <button
+                                              onClick={() => addUnitFromElaboration(subject, item, cat.key, 1, '')}
+                                              disabled={addingElabKey === item.key}
+                                              style={{ marginLeft: 8, fontSize: 11, padding: '1px 8px', background: 'none', border: `1px solid ${colors.border}`, borderRadius: 10, color: colors.text, cursor: 'pointer' }}
+                                            >
+                                              {addingElabKey === item.key ? '…' : '+ add'}
+                                            </button>
+                                          )}
+                                        </li>
+                                      )
+                                    })}
+                                  </ul>
                                 )}
                               </div>
                             )}
