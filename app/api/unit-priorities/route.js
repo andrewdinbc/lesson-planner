@@ -53,7 +53,7 @@ export async function POST(request) {
 
     if (Array.isArray(body.updates)) {
       for (const u of body.updates) {
-        await sbUpdate('unit_priorities', `?user_id=eq.${user.id}&subject=eq.${encodeURIComponent(u.subject)}&unit_name=eq.${encodeURIComponent(u.unit_name)}`, {
+        const patch = {
           priority: u.priority,
           high_scrutiny: u.high_scrutiny,
           removed: u.removed,
@@ -64,7 +64,9 @@ export async function POST(request) {
           saved_for_later: u.saved_for_later ?? true,
           year_rotation: u.year_rotation ?? null,
           updated_at: new Date().toISOString(),
-        })
+        }
+        if (u.resources !== undefined) patch.resources = u.resources
+        await sbUpdate('unit_priorities', `?user_id=eq.${user.id}&subject=eq.${encodeURIComponent(u.subject)}&unit_name=eq.${encodeURIComponent(u.unit_name)}`, patch)
       }
     }
 
