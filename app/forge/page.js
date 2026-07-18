@@ -119,6 +119,35 @@ export default function ForgePage() {
 
   const dialSaveTimers = useRef({})
   const [reportBusyId, setReportBusyId] = useState(null)
+  const [units, setUnits] = useState([])
+  const [attachChoice, setAttachChoice] = useState({}) // resourceId -> "subject::unitName"
+  const [attachingId, setAttachingId] = useState(null)
+
+  useEffect(() => {
+    fetch('/api/unit-priorities')
+      .then((r) => r.json())
+      .then((d) => setUnits((d.units || []).filter((u) => !u.removed)))
+  }, [])
+
+  async function attachToUnit(resourceId) {
+    const choice = attachChoice[resourceId]
+    if (!choice) return
+    const [subject, unitName] = choice.split('::')
+    setAttachingId(resourceId)
+    try {
+      const res = await fetch('/api/forge/attach-to-unit', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ forgeResourceId: resourceId, subject, unitName }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setResources((prev) => prev.map((x) => (x.id === resourceId ? { ...x, attached_units: [...(x.attached_units || []), { subject, unit_name: unitName }] } : x)))
+    } catch (e) {
+      alert(`Couldn't attach: ${e.message}`)
+    } finally {
+      setAttachingId(null)
+    }
+  }
 
   async function toggleObservation(resourceId, layerKey, observationId, included) {
     setResources((prev) => prev.map((x) => {
@@ -570,6 +599,36 @@ export default function ForgePage() {
                 </div>
               </div>
               <span style={{ fontSize: 11, fontWeight: 700, color: statusInfo.color, whiteSpace: 'nowrap' }}>{statusInfo.label}</span>
+            </div>
+
+            <div style={{ marginBottom: 8, background: '#f7f5f0', border: `1px solid ${C.border}`, borderRadius: 6, padding: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.navy, marginBottom: 4 }}>Attach to a unit</div>
+              {(r.attached_units || []).length > 0 && (
+                <div style={{ fontSize: 10, color: '#1a7a3e', marginBottom: 4 }}>
+                  ✓ Already attached to: {r.attached_units.map((a) => `${a.subject} — ${a.unit_name}`).join('; ')}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 6 }}>
+                <select
+                  value={attachChoice[r.id] || ''}
+                  onChange={(e) => setAttachChoice((prev) => ({ ...prev, [r.id]: e.target.value }))}
+                  style={{ flex: 1, fontSize: 11, padding: '4px 6px', border: `1px solid ${C.border}`, borderRadius: 5 }}
+                >
+                  <option value="">Choose a unit…</option>
+                  {units.map((u) => (
+                    <option key={`${u.subject}::${u.unit_name}`} value={`${u.subject}::${u.unit_name}`}>
+                      {u.subject} — {u.unit_name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => attachToUnit(r.id)} disabled={attachingId === r.id || !attachChoice[r.id]}
+                  style={{ padding: '4px 12px', background: C.gold, color: '#fff', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  {attachingId === r.id ? 'Attaching…' : '+ Attach'}
+                </button>
+              </div>
+              {units.length === 0 && <p style={{ fontSize: 10, color: '#999', margin: '4px 0 0' }}>No units yet -- add some in Unit Priorities first.</p>}
             </div>
 
             <div style={{ marginBottom: 8 }}>
