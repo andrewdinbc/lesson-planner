@@ -140,7 +140,12 @@ export default function ResourcesPage() {
               <li key={i} style={{ fontSize: 12, color: '#444', marginBottom: 4 }}>
                 <strong>{r.label}</strong>
                 {r.type === 'ai_generated' && <span style={{ fontSize: 9, color: colors?.text || C.gold, marginLeft: 6 }}>AI suggested</span>}
-                {r.type === 'teacher_upload' && <span style={{ fontSize: 9, color: '#888', marginLeft: 6 }}>{r.source_url ? 'from URL' : 'uploaded'} — in Forge</span>}
+                {r.type === 'teacher_upload' && (
+                  <span style={{ fontSize: 9, color: '#888', marginLeft: 6 }}>
+                    {r.source_url ? 'from URL' : 'uploaded'} —{' '}
+                    {r.forge_resource_id ? <a href="/forge" style={{ color: '#7a3c8a' }}>edit in Forge</a> : 'in Forge'}
+                  </span>
+                )}
                 {r.detail && <div style={{ fontSize: 11, color: '#777' }}>{r.detail.slice(0, 200)}{r.detail.length > 200 ? '…' : ''}</div>}
                 <button onClick={() => removeResource(u, i)} style={{ fontSize: 10, color: '#a33', background: 'none', border: 'none', cursor: 'pointer', marginLeft: 6 }}>remove</button>
               </li>

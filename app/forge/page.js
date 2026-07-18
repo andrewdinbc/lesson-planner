@@ -20,6 +20,8 @@ export default function ForgePage() {
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState({}) // id -> draft text
   const [busyId, setBusyId] = useState(null)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState(null)
 
   useEffect(() => {
     fetch('/api/forge')
@@ -27,6 +29,26 @@ export default function ForgePage() {
       .then((d) => setResources(d.resources || []))
       .finally(() => setLoading(false))
   }, [])
+
+  async function bulkImportTpt(fileList) {
+    const files = Array.from(fileList || [])
+    if (!files.length) return
+    setImporting(true)
+    setImportResult(null)
+    try {
+      const formData = new FormData()
+      files.forEach((f) => formData.append('files', f))
+      const res = await fetch('/api/forge/bulk-upload-tpt', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setResources((prev) => [...(data.imported || []), ...prev])
+      setImportResult({ count: data.imported.length, errors: data.errors })
+    } catch (e) {
+      setImportResult({ count: 0, errors: [{ error: e.message }] })
+    } finally {
+      setImporting(false)
+    }
+  }
 
   function draftFor(r) {
     return editing[r.id] !== undefined ? editing[r.id] : (r.edited_text || r.original_text || '')
@@ -105,6 +127,31 @@ export default function ForgePage() {
         <p style={{ fontSize: 13, color: '#888' }}>Nothing here yet -- upload a PDF or add a URL from the Resources page.</p>
       )}
 
+      <div style={{ background: '#fff', border: '1px solid #d9b8e8', borderRadius: 8, padding: 14, marginBottom: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#7a3c8a', marginBottom: 4 }}>📚 Import Your TPT Purchases</div>
+        <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px' }}>
+          Upload PDFs of resources you've already bought on TPT -- they'll land here to edit/remix and push into AI Steering, so generation can draw on material you already own. PDF only for now.
+        </p>
+        <label style={{ display: 'inline-block', padding: '6px 14px', background: '#7a3c8a', color: '#fff', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+          {importing ? 'Importing…' : '📎 Choose PDF(s) to Import'}
+          <input
+            type="file" accept="application/pdf" multiple style={{ display: 'none' }}
+            disabled={importing}
+            onChange={(e) => bulkImportTpt(e.target.files)}
+          />
+        </label>
+        {importResult && (
+          <div style={{ marginTop: 8, fontSize: 11 }}>
+            {importResult.count > 0 && <span style={{ color: '#1a7a3e' }}>✓ Imported {importResult.count} file{importResult.count > 1 ? 's' : ''}.</span>}
+            {importResult.errors?.length > 0 && (
+              <div style={{ color: '#a33', marginTop: 4 }}>
+                {importResult.errors.map((e, i) => <div key={i}>{e.filename ? `${e.filename}: ` : ''}{e.error}</div>)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {resources.map((r) => {
         const statusInfo = STATUS_LABELS[r.status] || STATUS_LABELS.raw
         return (
@@ -113,6 +160,11 @@ export default function ForgePage() {
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.navy }}>
                   {r.title} <span style={{ fontSize: 10, color: '#999', fontWeight: 400 }}>({r.source_type === 'pdf' ? 'PDF' : 'URL'})</span>
+                  {r.origin === 'tpt_purchase' && (
+                    <span style={{ fontSize: 9, fontWeight: 700, color: '#7a3c8a', background: '#f5eafa', border: '1px solid #d9b8e8', borderRadius: 4, padding: '1px 6px', marginLeft: 6 }}>
+                      📚 TPT Purchase
+                    </span>
+                  )}
                 </div>
                 {r.source_url && <a href={r.source_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#888' }}>{r.source_url}</a>}
                 {(r.subject || r.unit_name) && (

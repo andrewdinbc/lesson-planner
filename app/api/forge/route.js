@@ -31,6 +31,29 @@ export async function POST(request) {
       await sbUpdate('forge_resources', `?id=eq.${id}&user_id=eq.${user.id}`, {
         edited_text, status: 'edited', updated_at: new Date().toISOString(),
       })
+
+      // Sync the edit back into any unit's resources array that references
+      // this Forge item (via forge_resource_id, set when the item was
+      // originally uploaded/linked from the Resources page). Without this,
+      // "take the best parts, edit them in Forge" edits would sit in Forge
+      // and never actually reach what's shown in Resources or printed --
+      // per Aj's 2026-07-18 request to keep that connection live.
+      const unitsWithThisResource = await sbSelect('unit_priorities', `?user_id=eq.${user.id}&select=id,subject,unit_name,resources`)
+      for (const u of unitsWithThisResource) {
+        const resources = u.resources || []
+        let changed = false
+        const updated = resources.map((r) => {
+          if (r.forge_resource_id === id) {
+            changed = true
+            return { ...r, detail: edited_text }
+          }
+          return r
+        })
+        if (changed) {
+          await sbUpdate('unit_priorities', `?id=eq.${u.id}`, { resources: updated, updated_at: new Date().toISOString() })
+        }
+      }
+
       return Response.json({ ok: true })
     }
 
