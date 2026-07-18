@@ -66,6 +66,7 @@ export default function UnitsPage() {
   const [collapsedSubjects, setCollapsedSubjects] = useState({ Mathematics: true, 'Social Studies': true }) // subject -> bool, minimize/expand so the page isn't so long -- Math and Social Studies start minimized per Aj
   const [addingElabKey, setAddingElabKey] = useState(null)
   const [laStartingView, setLaStartingView] = useState({}) // LA category key -> 'activities' | 'content' | 'competency', default 'activities'
+  const [openLaCategory, setOpenLaCategory] = useState({}) // subject -> which LA category (reading/writing/oral) is expanded; only one open at a time, Reading first, per Aj's 2026-07-17 request
   const [manualApproach, setManualApproach] = useState({}) // `${cat.key}::${elab.key}` -> string, optional note carried along when adding to the Year Long Plan
   const [splitClassEnabled, setSplitClassEnabled] = useState(false) // A/B year rotation -- half the content is covered each year
   const [activeRotationYear, setActiveRotationYear] = useState('A')
@@ -837,7 +838,7 @@ export default function UnitsPage() {
                       <strong>This is your cart, not the final plan.</strong> Add the broad ideas you want covered this year -- you don't need to work out details, lengths, or how many times you'll run something. Once you've added what you want, AI will combine everything into real, sequenced units on the next page.
                     </div>
                     <LanguageArtsNotesPanel subject={subject} />
-                    {LA_CATEGORIES.map((cat) => {
+                    {LA_CATEGORIES.map((cat, catIndex) => {
                     const catUnits = subjectUnits.filter((u) => {
                       const cats = u.la_categories?.length ? u.la_categories : [u.la_category || categorizeLA(u.unit_name, u.content_summary)]
                       return cats.includes(cat.key)
@@ -846,6 +847,12 @@ export default function UnitsPage() {
                     const startingView = laStartingView[cat.key] || 'activities' // teacher picks which view opens first: Activities, Content, or Curricular Competency
                     const catGradesArr = [...new Set(catUnits.flatMap((u) => u.grades || []))]
                     const grade = catGradesArr.join('/') || null
+                    // Only one Language Arts section is open at a time -- Reading first
+                    // by default -- so the page isn't overwhelming. "Approve and move
+                    // on" advances to the next section per Aj's 2026-07-17 request.
+                    const isOpenCat = (openLaCategory[subject] || 'reading') === cat.key
+                    const isLastCat = catIndex === LA_CATEGORIES.length - 1
+
                     // Ministry elaborations, narrowed to just the grade(s) actually
                     // selected for this category -- no buffer above/below, per Aj's
                     // request to see only what's discussed at the selected grade(s).
@@ -862,13 +869,43 @@ export default function UnitsPage() {
                     )
                     const catElaborations = [...elaborationsForCategory(cat.key), ...ministryElabItems]
 
+                    // Same "already in the cart?" check applies no matter which tab
+                    // (Activities / Content / Curricular Competency) an item came
+                    // from -- all three tabs feed the exact same Year Long Plan cart.
                     const isElabCovered = (elab) => catUnits.some((u) => u.source_elaboration_key === elab.key || u.unit_name.toLowerCase() === elab.label.toLowerCase())
                     const coveredElabs = catElaborations.filter(isElabCovered)
                     const gapElabs = catElaborations.filter((e) => !isElabCovered(e))
 
+                    // Content topic items, narrowed to the selected grade(s), also
+                    // addable to the same cart.
+                    const contentItems = (ministryBand?.entries || []).flatMap((entry) =>
+                      entry.content.map((c, i) => ({
+                        key: `content::${cat.key}::${entry.grade}::${i}`,
+                        label: c,
+                        description: '',
+                        covers: [cat.key],
+                        grade: entry.grade,
+                        source: 'content',
+                      }))
+                    )
+                    const coveredContent = contentItems.filter(isElabCovered)
+                    const gapContent = contentItems.filter((e) => !isElabCovered(e))
+
                     const elabCard = (elab, isGap) => {
                       const countKey = `${cat.key}::${elab.key}`
                       const manualText = manualApproach[countKey] || ''
+
+                      if (!isGap) {
+                        // Already in the cart -- shrink to a one-line, greyed-out row
+                        // instead of taking up full card space, per Aj's 2026-07-17 request.
+                        return (
+                          <div key={elab.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px', opacity: 0.55, background: '#f4f4f2', border: `1px solid ${colors.border}`, borderRadius: 6 }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: '#666', flex: 1 }}>{elab.label}</span>
+                            <span style={{ fontSize: 10, color: '#888', whiteSpace: 'nowrap' }}>✓ already added to Year Long Plan</span>
+                          </div>
+                        )
+                      }
+
                       return (
                         <div key={elab.key} style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 6, padding: '8px 10px' }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
@@ -881,14 +918,16 @@ export default function UnitsPage() {
                                   </span>
                                 )}
                               </div>
-                              <div style={{ marginTop: 3 }}>
-                                {elab.source !== 'ministry' && (
-                                  <div style={{ fontSize: 10, color: '#999' }}>
-                                    Covers: {elab.covers.map((c) => LA_CATEGORIES.find((x) => x.key === c)?.label).join(', ')}
-                                  </div>
-                                )}
-                                <p style={{ fontSize: 11, color: '#666', margin: '3px 0 0' }}>{elab.description}</p>
-                              </div>
+                              {elab.description && (
+                                <div style={{ marginTop: 3 }}>
+                                  {elab.source !== 'ministry' && elab.source !== 'content' && (
+                                    <div style={{ fontSize: 10, color: '#999' }}>
+                                      Covers: {elab.covers.map((c) => LA_CATEGORIES.find((x) => x.key === c)?.label).join(', ')}
+                                    </div>
+                                  )}
+                                  <p style={{ fontSize: 11, color: '#666', margin: '3px 0 0' }}>{elab.description}</p>
+                                </div>
+                              )}
                               {isGap && (
                                 <div style={{ marginTop: 6 }}>
                                   <input
@@ -917,58 +956,89 @@ export default function UnitsPage() {
 
                     const TABS = [
                       { key: 'activities', label: `Activities (${catElaborations.length})` },
-                      { key: 'content', label: `Content (${catUnits.length})` },
-                      { key: 'competency', label: `Curricular Competency (${catUnits.length})` },
+                      { key: 'content', label: `Content (${contentItems.length})` },
+                      { key: 'competency', label: `Curricular Competency` },
                     ]
 
                     return (
-                      <div key={cat.key} style={{ marginBottom: 16, background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, padding: 12 }}>
-                        <h3 style={{ fontSize: 13, color: colors.text, fontWeight: 700, margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                          {cat.label}
-                        </h3>
+                      <div key={cat.key} style={{ marginBottom: 16, background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, padding: isOpenCat ? 12 : '8px 12px' }}>
+                        {isOpenCat ? (
+                          <>
+                            <h3 style={{ fontSize: 13, color: colors.text, fontWeight: 700, margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                              {cat.label}
+                            </h3>
 
-                        {/* Teacher picks the starting point -- Activities (Elaboration ideas), Content, or Curricular Competency. Only the selected view renders; switch anytime. */}
-                        <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-                          {TABS.map((tab) => (
-                            <button
-                              key={tab.key}
-                              type="button"
-                              onClick={() => setLaStartingView((prev) => ({ ...prev, [cat.key]: tab.key }))}
-                              style={{
-                                padding: '5px 12px', borderRadius: 14, fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                                border: `1px solid ${colors.border}`,
-                                background: startingView === tab.key ? colors.text : '#fff',
-                                color: startingView === tab.key ? '#fff' : colors.text,
-                              }}
-                            >
-                              {tab.label}
-                            </button>
-                          ))}
-                        </div>
+                            {/* Teacher picks the starting point -- Activities (Elaboration ideas), Content, or Curricular Competency. All three add to the same cart. */}
+                            <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                              {TABS.map((tab) => (
+                                <button
+                                  key={tab.key}
+                                  type="button"
+                                  onClick={() => setLaStartingView((prev) => ({ ...prev, [cat.key]: tab.key }))}
+                                  style={{
+                                    padding: '5px 12px', borderRadius: 14, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                                    border: `1px solid ${colors.border}`,
+                                    background: startingView === tab.key ? colors.text : '#fff',
+                                    color: startingView === tab.key ? '#fff' : colors.text,
+                                  }}
+                                >
+                                  {tab.label}
+                                </button>
+                              ))}
+                            </div>
 
-                        {startingView === 'activities' && (
-                          <div style={{ marginBottom: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {coveredElabs.map((elab) => elabCard(elab, false))}
-                            {gapElabs.length > 0 && (
-                              <>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: '#a33', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: coveredElabs.length > 0 ? 6 : 0 }}>
-                                  Not yet covered ({gapElabs.length})
-                                </div>
+                            {startingView === 'activities' && (
+                              <div style={{ marginBottom: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {coveredElabs.map((elab) => elabCard(elab, false))}
                                 {gapElabs.map((elab) => elabCard(elab, true))}
-                              </>
+                                {catElaborations.length === 0 && (
+                                  <p style={{ fontSize: 12, color: colors.text, opacity: 0.6, margin: 0 }}>No Elaboration ideas for this section yet.</p>
+                                )}
+                              </div>
                             )}
-                            {catElaborations.length === 0 && (
-                              <p style={{ fontSize: 12, color: colors.text, opacity: 0.6, margin: 0 }}>No Elaboration ideas for this section yet.</p>
-                            )}
-                          </div>
-                        )}
 
-                        {(startingView === 'content' || startingView === 'competency') && (
-                          <div>
-                            {catUnits.length > 0 ? catUnits.map((u) => renderUnitRow(u, startingView === 'competency')) : (
-                              <p style={{ fontSize: 12, color: colors.text, opacity: 0.6, margin: 0 }}>No units here yet -- switch to the Activities tab to add one from the Elaboration ideas.</p>
+                            {startingView === 'content' && (
+                              <div style={{ marginBottom: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {coveredContent.map((elab) => elabCard(elab, false))}
+                                {gapContent.map((elab) => elabCard(elab, true))}
+                                {contentItems.length === 0 && (
+                                  <p style={{ fontSize: 12, color: colors.text, opacity: 0.6, margin: 0 }}>No grade(s) selected for this section yet -- add a unit with a grade first, or use the Activities tab.</p>
+                                )}
+                              </div>
                             )}
-                          </div>
+
+                            {startingView === 'competency' && (
+                              <CompetencyTabContent
+                                subject={subject}
+                                catKey={cat.key}
+                                grades={catGradesArr}
+                                colors={colors}
+                                isElabCovered={isElabCovered}
+                                elabCard={elabCard}
+                              />
+                            )}
+
+                            {!isLastCat && (
+                              <button
+                                type="button"
+                                onClick={() => setOpenLaCategory((prev) => ({ ...prev, [subject]: LA_CATEGORIES[catIndex + 1].key }))}
+                                style={{ marginTop: 14, padding: '8px 16px', background: C.gold, color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                              >
+                                ✓ Approve {cat.label} & move on to {LA_CATEGORIES[catIndex + 1].label}
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setOpenLaCategory((prev) => ({ ...prev, [subject]: cat.key }))}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          >
+                            <span style={{ fontSize: 13, color: colors.text, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3 }}>{cat.label}</span>
+                            <span style={{ fontSize: 11, color: colors.text, opacity: 0.7 }}>
+                              {catUnits.length > 0 ? `${catUnits.length} in cart -- click to expand` : 'click to expand'}
+                            </span>
+                          </button>
                         )}
                       </div>
                     )
@@ -997,6 +1067,65 @@ export default function UnitsPage() {
 // here becomes a unit automatically -- it's just captured so it's available
 // when units get built on the next page. Debounced auto-save on the text
 // box; upload is immediate on file select.
+// Fetches real Curricular Competency text (from curriculum.gov.bc.ca, via
+// /api/curriculum-competency) for the grade(s) selected in this category,
+// splits it into addable cards, and renders them with the same
+// covered/gap treatment as Activities and Content -- all three tabs feed
+// the identical Year Long Plan cart. Grades-only fetch (no buffer), same
+// narrowing as the Activities/Content tabs.
+function CompetencyTabContent({ subject, catKey, grades, colors, isElabCovered, elabCard }) {
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (grades.length === 0) {
+      setItems([])
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    setError('')
+    fetch(`/api/curriculum-competency?subject=${encodeURIComponent(subject)}&grades=${grades.join(',')}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) throw new Error(d.error)
+        const built = Object.entries(d.results || {}).flatMap(([grade, lines]) =>
+          lines.map((line, i) => ({
+            key: `competency::${catKey}::${grade}::${i}`,
+            label: line,
+            description: '',
+            covers: [catKey],
+            grade,
+            source: 'competency',
+          }))
+        )
+        setItems(built)
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [subject, catKey, grades.join(',')])
+
+  if (grades.length === 0) {
+    return <p style={{ fontSize: 12, color: colors.text, opacity: 0.6, margin: 0 }}>No grade(s) selected for this section yet -- add a unit with a grade first, or use the Activities tab.</p>
+  }
+  if (loading) return <p style={{ fontSize: 12, color: colors.text, opacity: 0.6, margin: 0 }}>Loading curricular competencies…</p>
+  if (error) return <p style={{ fontSize: 12, color: '#a33', margin: 0 }}>Couldn't load curricular competencies: {error}</p>
+
+  const covered = items.filter(isElabCovered)
+  const gap = items.filter((e) => !isElabCovered(e))
+
+  return (
+    <div style={{ marginBottom: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {covered.map((elab) => elabCard(elab, false))}
+      {gap.map((elab) => elabCard(elab, true))}
+      {items.length === 0 && (
+        <p style={{ fontSize: 12, color: colors.text, opacity: 0.6, margin: 0 }}>No curricular competency data found for this grade.</p>
+      )}
+    </div>
+  )
+}
+
 function LanguageArtsNotesPanel({ subject }) {
   const [notesText, setNotesText] = useState('')
   const [uploadedDocs, setUploadedDocs] = useState([])
