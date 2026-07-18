@@ -5,7 +5,7 @@ import { COLORS as C, FONT_BODY } from '@/lib/theme'
 import { reorderWithinSubject } from '@/lib/unit-priorities'
 import { ASSESSMENT_TYPES, currentInstructionalWeek, reminderStatus } from '@/lib/assessment-types'
 import { LA_CATEGORIES, categorizeLA } from '@/lib/language-arts-categories'
-import { LA_ELABORATIONS, elaborationsForCategory } from '@/lib/la-elaborations'
+import { LA_ELABORATIONS, elaborationsForCategory, BALANCED_LITERACY_FRAMEWORK } from '@/lib/la-elaborations'
 import { getElaborationsForGrades } from '@/lib/curriculum-full-elaborations'
 const ALWAYS_HIGH_SCRUTINY = ['Language Arts', 'Mathematics']
 // Distinct color per Language Arts section so Reading/Writing/Oral read as
@@ -908,11 +908,10 @@ export default function UnitsPage() {
                     const startingView = laStartingView[cat.key] || 'activities' // teacher picks which view opens first: Activities, Content, or Curricular Competency
                     const catGradesArr = [...new Set(catUnits.flatMap((u) => u.grades || []))]
                     const grade = catGradesArr.join('/') || null
-                    // Ministry elaborations band: teacher picks grades 4+5 -> shows 3 through 7
-                    // (below-buffer shrinks as the selected span widens, full buffer above), so
-                    // Ministry elaboration ideas for nearby grades show up as real activity cards
-                    // right alongside the curated ones -- not a separate tab.
-                    const ministryBand = catGradesArr.length > 0 ? getElaborationsForGrades('Language Arts', catGradesArr) : null
+                    // Ministry elaborations, narrowed to just the grade(s) actually
+                    // selected for this category -- no buffer above/below, per Aj's
+                    // request to see only what's discussed at the selected grade(s).
+                    const ministryBand = catGradesArr.length > 0 ? getElaborationsForGrades('Language Arts', catGradesArr, 0, 0) : null
                     const ministryElabItems = (ministryBand?.entries || []).flatMap((entry) =>
                       entry.elaborations.map((e) => ({
                         key: `ministry::${cat.key}::${entry.grade}::${e.term.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
@@ -939,9 +938,9 @@ export default function UnitsPage() {
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: 12, fontWeight: 700, color: C.navy, display: 'flex', alignItems: 'center', gap: 6 }}>
                                 {elab.label}
-                                {elab.source === 'ministry' && (
+                                {elab.framework && (
                                   <span style={{ fontSize: 9, fontWeight: 700, color: colors.text, background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 4, padding: '1px 5px', textTransform: 'none' }}>
-                                    Gr. {elab.grade} Ministry
+                                    {BALANCED_LITERACY_FRAMEWORK[elab.framework] || elab.framework}
                                   </span>
                                 )}
                               </div>
@@ -995,10 +994,10 @@ export default function UnitsPage() {
                                   <button
                                     onClick={() => addUnitFromElaboration(subject, elab, cat.key, count)}
                                     disabled={addingElabKey === elab.key}
-                                    title={`Insert ${count > 1 ? count + ' empty placeholder units' : 'an empty placeholder unit'} for ${cat.label} -- fill in the details yourself later`}
+                                    title={`Add ${count > 1 ? count + ' units' : 'this'} to your Year Long Plan for ${cat.label} -- empty for now, fill in details later`}
                                     style={{ padding: '4px 10px', background: colors.text, color: '#fff', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
                                   >
-                                    {addingElabKey === elab.key ? 'Adding…' : `+ Add as a Unit Frame${count > 1 ? ` (×${count})` : ''} (empty, add info later)`}
+                                    {addingElabKey === elab.key ? 'Adding…' : `+ Add to Year Long Plan${count > 1 ? ` (×${count})` : ''}`}
                                   </button>
                                   <button
                                     onClick={() => aiBuildUnit(subject, elab, cat.key, cat.label, grade, count)}
