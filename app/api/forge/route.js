@@ -83,6 +83,21 @@ export async function POST(request) {
       return Response.json({ ok: true })
     }
 
+    // Like/dislike a specific extracted layer (visuals, structure, etc.)
+    // on this resource -- used at blend time to emphasize liked layers
+    // and explicitly exclude disliked ones, and documented in the
+    // eventual differentiation report for legal recordkeeping.
+    if (action === 'set_layer_preference') {
+      const { layerKey, preference } = body // preference: 'like' | 'dislike' | null
+      if (!layerKey) return Response.json({ error: 'layerKey is required' }, { status: 400 })
+      const [row] = await sbSelect('forge_resources', `?id=eq.${id}&user_id=eq.${user.id}&select=layer_preferences`)
+      const prefs = { ...(row?.layer_preferences || {}) }
+      if (preference) prefs[layerKey] = preference
+      else delete prefs[layerKey]
+      await sbUpdate('forge_resources', `?id=eq.${id}&user_id=eq.${user.id}`, { layer_preferences: prefs, updated_at: new Date().toISOString() })
+      return Response.json({ ok: true, layer_preferences: prefs })
+    }
+
     return Response.json({ error: `Unknown action: ${action}` }, { status: 400 })
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 })

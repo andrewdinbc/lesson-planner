@@ -42,16 +42,36 @@ export async function POST(request) {
     const { name, resourceIds, personalTwist } = body
     if (!name || !resourceIds?.length) return Response.json({ error: 'name and resourceIds are required' }, { status: 400 })
 
-    const resources = await sbSelect('forge_resources', `?user_id=eq.${user.id}&id=in.(${resourceIds.join(',')})&select=title,style_notes,dial_estimates`)
+    const resources = await sbSelect('forge_resources', `?user_id=eq.${user.id}&id=in.(${resourceIds.join(',')})&select=title,style_notes,dial_estimates,layer_notes,layer_preferences`)
     const withNotes = resources.filter((r) => r.style_notes)
     if (!withNotes.length) return Response.json({ error: 'None of the selected resources have extracted style patterns yet -- extract a style pattern from each one first.' }, { status: 400 })
 
     const dialValues = averageDialEstimates(resources.map((r) => r.dial_estimates).filter(Boolean))
+    const sourceDialEstimates = dialValues // frozen snapshot for the differentiation report
+
+    // Fold in like/dislike layer preferences: liked layers get emphasized,
+    // disliked ones get explicitly named as things to AVOID, so the blend
+    // deliberately diverges from what the teacher didn't want -- this is
+    // also what gets documented in the differentiation report.
+    const likedLines = []
+    const dislikedLines = []
+    for (const r of withNotes) {
+      const prefs = r.layer_preferences || {}
+      for (const [layerKey, pref] of Object.entries(prefs)) {
+        const layerValue = r.layer_notes?.[layerKey]
+        if (!layerValue) continue
+        if (pref === 'like') likedLines.push(`From "${r.title}" (${layerKey}): ${layerValue}`)
+        if (pref === 'dislike') dislikedLines.push(`From "${r.title}" (${layerKey}): ${layerValue}`)
+      }
+    }
 
     const prompt = `You are blending multiple abstract STYLE patterns (structure, tone, pacing, format -- never content) into one coherent, named "genre feel" for a teacher's original resources.
 
 Style patterns to blend:
 ${withNotes.map((r, i) => `${i + 1}. From "${r.title}": ${r.style_notes}`).join('\n')}
+
+${likedLines.length ? `EMPHASIZE these specifically-liked elements:\n${likedLines.join('\n')}` : ''}
+${dislikedLines.length ? `DELIBERATELY AVOID these specifically-disliked elements -- the blend should diverge from them:\n${dislikedLines.join('\n')}` : ''}
 
 ${personalTwist ? `The teacher's own personal twist to layer in: ${personalTwist}` : ''}
 
@@ -71,6 +91,7 @@ Respond with ONLY JSON, no markdown fences:
     const [profile] = await sbInsert('style_profiles', [{
       user_id: user.id, name, blended_style_text: blendedStyle, source_resource_ids: resourceIds,
       dial_values: dialValues || defaultDialValues(),
+      source_dial_estimates: sourceDialEstimates,
     }])
 
     return Response.json({ profile })

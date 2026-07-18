@@ -118,6 +118,47 @@ export default function ForgePage() {
   }
 
   const dialSaveTimers = useRef({})
+  const [reportBusyId, setReportBusyId] = useState(null)
+
+  async function setLayerPreference(resourceId, layerKey, currentPref, newPref) {
+    const nextPref = currentPref === newPref ? null : newPref // click again to clear
+    setResources((prev) => prev.map((x) => (x.id === resourceId ? { ...x, layer_preferences: { ...(x.layer_preferences || {}), [layerKey]: nextPref } } : x)))
+    try {
+      await fetch('/api/forge', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: resourceId, action: 'set_layer_preference', layerKey, preference: nextPref }),
+      })
+    } catch { /* local state still reflects the change */ }
+  }
+
+  async function generateDifferentiationReport(profile) {
+    setReportBusyId(profile.id)
+    try {
+      const res = await fetch('/api/style-profiles/generate-differentiation-report', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: profile.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setProfiles((prev) => prev.map((p) => (p.id === profile.id ? { ...p, differentiation_report: data.report } : p)))
+    } catch (e) {
+      alert(`Couldn't generate report: ${e.message}`)
+    } finally {
+      setReportBusyId(null)
+    }
+  }
+
+  function downloadReport(profile) {
+    if (!profile.differentiation_report) return
+    const blob = new Blob([profile.differentiation_report], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${profile.name.replace(/[^a-z0-9]+/gi, '-')}-differentiation-report.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
 
   function updateDial(profile, dialKey, value) {
     const currentDials = { ...(profile.dial_values || defaultDialValues()), [dialKey]: value }
@@ -334,6 +375,8 @@ export default function ForgePage() {
                 </div>
                 {STYLE_DIALS.map((dial) => {
                   const value = (p.dial_values || defaultDialValues())[dial.key]
+                  const source = p.source_dial_estimates?.[dial.key]
+                  const delta = typeof source === 'number' ? value - source : null
                   return (
                     <div key={dial.key} style={{ marginBottom: 8 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#888', marginBottom: 2 }}>
@@ -341,14 +384,56 @@ export default function ForgePage() {
                         <span style={{ fontWeight: 700, color: '#2f6b41' }}>{dial.label}</span>
                         <span>{dial.hiLabel}</span>
                       </div>
-                      <input
-                        type="range" min={0} max={100} value={value}
-                        onChange={(e) => updateDial(p, dial.key, Number(e.target.value))}
-                        style={{ width: '100%', accentColor: '#2f6b41' }}
-                      />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <input
+                          type="range" min={0} max={100} value={value}
+                          onChange={(e) => updateDial(p, dial.key, Number(e.target.value))}
+                          style={{ flex: 1, accentColor: '#2f6b41' }}
+                        />
+                        <input
+                          type="number" min={0} max={100} value={value}
+                          onChange={(e) => updateDial(p, dial.key, Math.max(0, Math.min(100, Number(e.target.value))))}
+                          style={{ width: 44, fontSize: 11, padding: '2px 4px', border: '1px solid #b8dcc2', borderRadius: 4, textAlign: 'center' }}
+                        />
+                        {delta !== null && delta !== 0 && (
+                          <span style={{ fontSize: 9, color: '#a06b1f', whiteSpace: 'nowrap', minWidth: 68 }}>
+                            {delta > 0 ? '+' : ''}{delta} vs source
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )
                 })}
+              </div>
+
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #e6e0d5' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.navy, marginBottom: 4 }}>
+                  📋 Legal Documentation
+                </div>
+                <p style={{ fontSize: 10, color: '#999', margin: '0 0 6px' }}>
+                  Generates a factual record of exactly how far this blend's dial values diverge from the averaged source material, plus which elements you flagged like/dislike. For your own recordkeeping -- not legal advice.
+                </p>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    onClick={() => generateDifferentiationReport(p)} disabled={reportBusyId === p.id}
+                    style={{ padding: '5px 12px', background: '#fff', border: '1px solid #a06b1f', color: '#a06b1f', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    {reportBusyId === p.id ? 'Generating…' : p.differentiation_report ? '↻ Regenerate Report' : '📋 Generate Differentiation Report'}
+                  </button>
+                  {p.differentiation_report && (
+                    <button
+                      onClick={() => downloadReport(p)}
+                      style={{ padding: '5px 12px', background: '#a06b1f', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      ⬇ Download
+                    </button>
+                  )}
+                </div>
+                {p.differentiation_report && (
+                  <pre style={{ marginTop: 8, fontSize: 10, color: '#555', background: '#f7f5f0', border: '1px solid #e6e0d5', borderRadius: 6, padding: 8, whiteSpace: 'pre-wrap', maxHeight: 200, overflow: 'auto' }}>
+                    {p.differentiation_report}
+                  </pre>
+                )}
               </div>
 
               <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #e6e0d5' }}>
@@ -466,18 +551,33 @@ export default function ForgePage() {
                     if (!value) return null
                     const expandKey = `${r.id}::${layer.key}`
                     const isExpanded = expandedLayer === expandKey
+                    const pref = (r.layer_preferences || {})[layer.key]
                     return (
-                      <div key={layer.key} style={{ fontSize: 11, color: '#2f6b41', background: '#eef6f0', border: '1px solid #b8dcc2', borderRadius: 5, padding: '5px 8px', marginTop: 4 }}>
-                        <button
-                          onClick={() => setExpandedLayer(isExpanded ? null : expandKey)}
-                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', width: '100%' }}
-                        >
-                          <strong>• {layer.label}</strong>{' '}
-                          <span style={{ color: '#4a8a5f', textDecoration: 'underline', fontSize: 10 }}>
-                            {isExpanded ? 'Hide' : 'Explore this layer →'}
-                          </span>
-                          <div style={{ marginTop: 2 }}>{value}</div>
-                        </button>
+                      <div key={layer.key} style={{ fontSize: 11, color: '#2f6b41', background: '#eef6f0', border: `1px solid ${pref === 'like' ? '#4a8a5f' : pref === 'dislike' ? '#c47a7a' : '#b8dcc2'}`, borderRadius: 5, padding: '5px 8px', marginTop: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                          <button
+                            onClick={() => setExpandedLayer(isExpanded ? null : expandKey)}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', flex: 1 }}
+                          >
+                            <strong>• {layer.label}</strong>{' '}
+                            <span style={{ color: '#4a8a5f', textDecoration: 'underline', fontSize: 10 }}>
+                              {isExpanded ? 'Hide' : 'Explore this layer →'}
+                            </span>
+                            <div style={{ marginTop: 2 }}>{value}</div>
+                          </button>
+                          <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                            <button
+                              onClick={() => setLayerPreference(r.id, layer.key, pref, 'like')}
+                              title="I like this -- emphasize it in blends"
+                              style={{ background: pref === 'like' ? '#4a8a5f' : '#fff', color: pref === 'like' ? '#fff' : '#4a8a5f', border: '1px solid #4a8a5f', borderRadius: 4, fontSize: 11, padding: '2px 6px', cursor: 'pointer' }}
+                            >👍</button>
+                            <button
+                              onClick={() => setLayerPreference(r.id, layer.key, pref, 'dislike')}
+                              title="I dislike this -- avoid it in blends"
+                              style={{ background: pref === 'dislike' ? '#c47a7a' : '#fff', color: pref === 'dislike' ? '#fff' : '#c47a7a', border: '1px solid #c47a7a', borderRadius: 4, fontSize: 11, padding: '2px 6px', cursor: 'pointer' }}
+                            >👎</button>
+                          </div>
+                        </div>
                         {isExpanded && (
                           <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid #b8dcc2', fontSize: 10, color: '#5a8a68', fontStyle: 'italic' }}>
                             {layer.hint}
