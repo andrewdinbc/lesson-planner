@@ -15,6 +15,20 @@ const STATUS_LABELS = {
   published_tpt: { label: '✓ Published on TPT', color: '#1a7a3e' },
 }
 
+// The style/format layers we extract (Aj's breakdown, 2026-07-18) --
+// Content, Branding, and Credits & Terms are deliberately excluded, see
+// the comment block at the top of /api/forge/extract-style-pattern.
+const LAYER_META = [
+  { key: 'visuals', label: 'Visuals Layer', hint: 'Layout, color coding, formatting conventions -- described abstractly, never reproducing actual clipart/icon assets.' },
+  { key: 'structure', label: 'Structure Layer', hint: 'Sequencing, scaffolding, differentiation, pacing, grouping, formatting.' },
+  { key: 'interaction', label: 'Interaction Layer', hint: 'How students engage, as a generic format -- task cards, drag-and-drop, centers, games.' },
+  { key: 'assessmentFormat', label: 'Assessment Layer', hint: 'Format of how understanding is checked -- self-checking, rubric tiers, auto-grading -- not the actual key/rubric content.' },
+  { key: 'teacherDirections', label: 'Teacher Directions Layer', hint: 'Format of setup/prep notes, if present.' },
+  { key: 'studentDirections', label: 'Student Directions Layer', hint: 'Format of how instructions are presented to students.' },
+  { key: 'extension', label: 'Extension Layer', hint: 'Format of any early-finisher/enrichment provision.' },
+  { key: 'digital', label: 'Digital Layer', hint: 'Which digital format(s) exist, as a plain fact.' },
+]
+
 export default function ForgePage() {
   const [resources, setResources] = useState([])
   const [loading, setLoading] = useState(true)
@@ -23,6 +37,7 @@ export default function ForgePage() {
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState(null)
   const [extractingId, setExtractingId] = useState(null)
+  const [expandedLayer, setExpandedLayer] = useState(null) // `${resourceId}::${layerKey}`
   const [selectedForBlend, setSelectedForBlend] = useState(new Set())
   const [blendName, setBlendName] = useState('')
   const [personalTwist, setPersonalTwist] = useState('')
@@ -45,7 +60,7 @@ export default function ForgePage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setResources((prev) => prev.map((x) => (x.id === r.id ? { ...x, style_notes: data.styleNotes } : x)))
+      setResources((prev) => prev.map((x) => (x.id === r.id ? { ...x, style_notes: data.styleNotes, layer_notes: data.layers } : x)))
     } catch (e) {
       alert(`Couldn't extract style pattern: ${e.message}`)
     } finally {
@@ -282,8 +297,8 @@ export default function ForgePage() {
               <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                 <input
                   type="checkbox" checked={selectedForBlend.has(r.id)} onChange={() => toggleBlendSelection(r.id)}
-                  disabled={!r.style_notes}
-                  title={r.style_notes ? 'Select for style blend' : 'Extract a style pattern first'}
+                  disabled={!r.layer_notes}
+                  title={r.layer_notes ? 'Select for style blend' : 'Extract style layers first'}
                   style={{ marginTop: 4 }}
                 />
                 <div>
@@ -309,11 +324,35 @@ export default function ForgePage() {
                 onClick={() => extractStylePattern(r)} disabled={extractingId === r.id}
                 style={{ padding: '4px 10px', background: '#fff', border: '1px solid #b8dcc2', color: '#2f6b41', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
               >
-                {extractingId === r.id ? 'Extracting…' : r.style_notes ? '🎨 Re-extract Style Pattern' : '🎨 Extract Style Pattern'}
+                {extractingId === r.id ? 'Extracting…' : r.layer_notes ? '🎨 Re-extract Style Layers' : '🎨 Extract Style Layers'}
               </button>
-              {r.style_notes && (
-                <div style={{ fontSize: 11, color: '#2f6b41', background: '#eef6f0', border: '1px solid #b8dcc2', borderRadius: 5, padding: '6px 8px', marginTop: 6 }}>
-                  <strong>Style pattern:</strong> {r.style_notes}
+              {r.layer_notes && (
+                <div style={{ marginTop: 6 }}>
+                  {LAYER_META.map((layer) => {
+                    const value = r.layer_notes[layer.key]
+                    if (!value) return null
+                    const expandKey = `${r.id}::${layer.key}`
+                    const isExpanded = expandedLayer === expandKey
+                    return (
+                      <div key={layer.key} style={{ fontSize: 11, color: '#2f6b41', background: '#eef6f0', border: '1px solid #b8dcc2', borderRadius: 5, padding: '5px 8px', marginTop: 4 }}>
+                        <button
+                          onClick={() => setExpandedLayer(isExpanded ? null : expandKey)}
+                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', width: '100%' }}
+                        >
+                          <strong>• {layer.label}</strong>{' '}
+                          <span style={{ color: '#4a8a5f', textDecoration: 'underline', fontSize: 10 }}>
+                            {isExpanded ? 'Hide' : 'Explore this layer →'}
+                          </span>
+                          <div style={{ marginTop: 2 }}>{value}</div>
+                        </button>
+                        {isExpanded && (
+                          <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid #b8dcc2', fontSize: 10, color: '#5a8a68', fontStyle: 'italic' }}>
+                            {layer.hint}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>

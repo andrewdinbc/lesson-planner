@@ -1,10 +1,27 @@
 // app/api/forge/extract-style-pattern/route.js
 // Extracts ONLY abstract structural/stylistic observations from a Forge
-// resource -- layout conventions, tone, pacing, organizational structure,
-// visual style -- explicitly never content, facts, specific text, or
-// exercises. This is the boundary that makes genre-blending legitimate:
-// style/genre/structure are not copyrightable, specific expression is.
-// The resulting style_notes get combined across many resources into a
+// resource, broken into named layers (Aj's framing, 2026-07-18) -- never
+// content, facts, specific text, or exercises. This is the boundary that
+// makes genre-blending legitimate: style/genre/structure/format are not
+// copyrightable, specific expression is.
+//
+// Layers extracted (format/pattern only):
+//   visuals, structure, interaction, assessmentFormat,
+//   teacherDirections, studentDirections, extension, digital
+//
+// Layers deliberately NOT extracted, and why:
+//   - Content Layer (questions, passages, problems, prompts, examples):
+//     this IS the specific expression copyright protects. Extracting it
+//     for reuse, however it's framed, is the thing we're not doing.
+//   - Branding Layer (logo, color palette, fonts, cross-product style):
+//     that's another creator's brand identity for their own store --
+//     mimicking it for a competing product is its own problem, separate
+//     from copyright (trade dress / unfair competition territory).
+//   - Credits & Terms Layer: that's the ORIGINAL creator's licensing
+//     obligations for THEIR licensed assets (clipart credits, usage
+//     rights) -- it doesn't transfer to anyone else's product.
+//
+// The resulting layer_notes get combined across many resources into a
 // named style_profiles blend (see /api/style-profiles), which informs AI
 // generation of wholly original content -- generation is told to write
 // IN this style, never to reproduce any source's actual material.
@@ -26,38 +43,44 @@ export async function POST(request) {
 
     const text = (row.edited_text || row.original_text || '').slice(0, 8000)
 
-    const prompt = `You are analyzing a teaching resource to extract its STYLE and STRUCTURE only -- never its content.
+    const prompt = `You are analyzing a teaching resource to extract its STYLE and FORMAT only, broken into layers -- never its actual content.
 
 Resource: ${row.title}
 Text:
 ${text}
 
-Describe ONLY:
-- Organizational structure (how it's sequenced/laid out, e.g. "warm-up, guided practice, independent practice, exit ticket")
-- Tone and voice (e.g. "playful and encouraging", "formal and rigorous", "conversational")
-- Visual/formatting conventions (e.g. "illustrated section headers", "numbered checklist style", "color-coded difficulty tiers")
-- Pacing (e.g. "short bursts of activity", "one deep-dive task per session")
-- Any other abstract stylistic pattern -- genre, feel, structural convention
+For each layer below, describe the ABSTRACT PATTERN only -- never specific facts, questions, passages, examples, answer key content, or exact text from the source. If a layer isn't really present/inferable from the text, use an empty string for it.
 
-DO NOT include:
-- Any specific facts, examples, questions, or exercises from the text
-- Any specific numbers, names, or content details
-- Anything that could let someone reconstruct what the resource actually says
+- visuals: layout/formatting conventions you can infer from structure (e.g. "color-coded sections", "boxed callouts") -- describe the STYLE, never reproduce or describe specific clipart/images since those are separately licensed assets, not something to extract at all
+- structure: how it's organized/sequenced (e.g. "warm-up, guided practice, independent practice, exit ticket"; scaffolding/differentiation/pacing patterns)
+- interaction: the TYPE of student engagement as a generic format (e.g. "task cards", "cut-and-paste sorting", "digital drag-and-drop") -- not what the specific tasks say
+- assessmentFormat: the FORMAT of how understanding is checked (e.g. "self-checking answer key", "tiered rubric", "auto-grading digital cards") -- not the actual key/rubric content
+- teacherDirections: format of setup/prep notes if present (e.g. "includes printing tips and a differentiation note") -- not their actual content
+- studentDirections: format of how instructions are presented to students (e.g. "icon-based step-by-step") -- not their actual wording
+- extension: format of any early-finisher/enrichment provision (e.g. "includes a challenge tier") -- not the actual challenge content
+- digital: what digital format(s) exist as a plain fact (e.g. "has a Google Slides version") -- format only
 
 Respond with ONLY JSON, no markdown fences:
-{"styleNotes": "2-4 sentences describing structure/tone/format/pacing patterns only, written so it reads like a style guide, not a summary of content"}`
+{"visuals": "...", "structure": "...", "interaction": "...", "assessmentFormat": "...", "teacherDirections": "...", "studentDirections": "...", "extension": "...", "digital": "..."}`
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-5',
-      max_tokens: 500,
+      max_tokens: 900,
       messages: [{ role: 'user', content: prompt }],
     })
     const raw = response.content.find((b) => b.type === 'text')?.text || '{}'
-    const { styleNotes } = JSON.parse(raw.replace(/```json|```/g, '').trim())
+    const layers = JSON.parse(raw.replace(/```json|```/g, '').trim())
 
-    await sbUpdate('forge_resources', `?id=eq.${id}&user_id=eq.${user.id}`, { style_notes: styleNotes, updated_at: new Date().toISOString() })
+    // Keep style_notes (flat summary) alongside layer_notes for anywhere
+    // still reading the flat field, but layer_notes is the source of truth
+    // going forward.
+    const flatSummary = Object.entries(layers).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(' ')
 
-    return Response.json({ styleNotes })
+    await sbUpdate('forge_resources', `?id=eq.${id}&user_id=eq.${user.id}`, {
+      layer_notes: layers, style_notes: flatSummary, updated_at: new Date().toISOString(),
+    })
+
+    return Response.json({ layers, styleNotes: flatSummary })
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 })
   }
