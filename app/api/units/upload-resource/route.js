@@ -52,7 +52,7 @@ export async function POST(request) {
     const [forgeRow] = await sbInsert('forge_resources', [{
       user_id: user.id, subject, unit_name: unitName,
       source_type: 'pdf', title: file.name,
-      original_text: text, file_url: fileUrl,
+      original_text: text, file_url: fileUrl, source_app: 'lesson-planner',
     }])
 
     return Response.json({

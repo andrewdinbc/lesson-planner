@@ -62,7 +62,7 @@ export async function POST(request) {
         const fileUrl = await sbUploadFile('forge-resources', `${user.id}/${Date.now()}-${safeName}`, buffer, 'application/pdf')
         await sbInsert('forge_resources', [{
           user_id: user.id, subject, source_type: 'pdf', title: file.name,
-          original_text: extracted.text.slice(0, 20000), file_url: fileUrl,
+          original_text: extracted.text.slice(0, 20000), file_url: fileUrl, source_app: 'lesson-planner',
         }])
       } catch (e) {
         // Non-fatal -- subject note upload still succeeds without the Forge copy.
