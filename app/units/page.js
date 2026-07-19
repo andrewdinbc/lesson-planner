@@ -5,6 +5,7 @@ import { COLORS as C, FONT_BODY } from '@/lib/theme'
 import { reorderWithinSubject } from '@/lib/unit-priorities'
 import { ASSESSMENT_TYPES, currentInstructionalWeek, reminderStatus } from '@/lib/assessment-types'
 import { LA_CATEGORIES, categorizeLA } from '@/lib/language-arts-categories'
+import { LA_ACTIVITIES } from '@/lib/la-activities'
 import { BALANCED_LITERACY_FRAMEWORK } from '@/lib/la-elaborations'
 import { getElaborationsForGrades } from '@/lib/curriculum-full-elaborations'
 const ALWAYS_HIGH_SCRUTINY = ['Language Arts', 'Mathematics']
@@ -68,6 +69,7 @@ export default function UnitsPage() {
   const [laStartingView, setLaStartingView] = useState({}) // LA category key -> 'activities' | 'content' | 'competency', default 'activities'
   const [openLaCategory, setOpenLaCategory] = useState({}) // subject -> which LA category (reading/writing/oral) is expanded; only one open at a time, Reading first, per Aj's 2026-07-17 request
   const [manualApproach, setManualApproach] = useState({}) // `${cat.key}::${elab.key}` -> string, optional note carried along when adding to the Year Long Plan
+  const [customIdeaText, setCustomIdeaText] = useState({}) // cat.key -> string, freeform "add your own idea" box per Aj 2026-07-19
   const [splitClassEnabled, setSplitClassEnabled] = useState(false) // A/B year rotation -- half the content is covered each year
   const [activeRotationYear, setActiveRotationYear] = useState('A')
   const [savingSplitClass, setSavingSplitClass] = useState(false)
@@ -329,6 +331,20 @@ export default function UnitsPage() {
       inFlightElabKeys.current.delete(elab.key)
       setAddingElabKey(null)
     }
+  }
+
+  // Freeform "add your own idea" box, per Aj 2026-07-19 -- for anything a
+  // teacher enjoys teaching that isn't a specific ministry Content item or
+  // one of the curated Activities. Adds to the same Year Long Plan cart,
+  // with a synthetic key so it's tracked/excludable like everything else
+  // (cross-category exclusion still applies if the same text is typed
+  // under another strand later).
+  async function addCustomIdea(subject, cat) {
+    const text = (customIdeaText[cat.key] || '').trim()
+    if (!text) return
+    const elab = { key: `custom::${cat.key}::${Date.now()}`, label: text }
+    await addUnitFromElaboration(subject, elab, cat.key, 1, '')
+    setCustomIdeaText((prev) => ({ ...prev, [cat.key]: '' }))
   }
 
   async function saveSplitClassSettings(patch) {
@@ -872,7 +888,12 @@ export default function UnitsPage() {
                     // Same "already in the cart?" check applies no matter which tab
                     // (Content / Curricular Competency) an item came from -- both
                     // tabs feed the exact same Year Long Plan cart.
-                    const isElabCovered = (elab) => catUnits.some((u) => u.source_elaboration_key === elab.key || u.unit_name.toLowerCase() === elab.label.toLowerCase())
+                    // Checks across the WHOLE subject, not just this category -- per Aj,
+                    // 2026-07-19: once an idea (e.g. "Text Features") is added under one
+                    // strand, it should disappear as an option from the other strands too,
+                    // not just the one it was added from. subjectUnits (not catUnits) is
+                    // what makes this cross-category instead of same-category-only.
+                    const isElabCovered = (elab) => subjectUnits.some((u) => u.source_elaboration_key === elab.key || u.unit_name.toLowerCase() === elab.label.toLowerCase())
 
                     // Content topic items, narrowed to the selected grade(s), also
                     // addable to the same cart.
@@ -888,6 +909,24 @@ export default function UnitsPage() {
                     )
                     const coveredContent = contentItems.filter(isElabCovered)
                     const gapContent = contentItems.filter((e) => !isElabCovered(e))
+
+                    // Curated pedagogical activity/strategy ideas for this specific
+                    // strand (lib/la-activities.js) -- distinct data from the ministry
+                    // Content elaborations above, and distinct per-category so Oral
+                    // Language Fluency only ever shows oral-fluency-specific ideas, etc.
+                    // Same cross-category exclusion applies via isElabCovered.
+                    const activityGroups = LA_ACTIVITIES[cat.key] || []
+                    const activityItems = activityGroups.flatMap((g, gi) =>
+                      g.items.map((it, ii) => ({
+                        key: `activity::${cat.key}::${gi}::${ii}`,
+                        label: it.label,
+                        description: it.description,
+                        group: g.group,
+                        icon: g.icon,
+                        covers: [cat.key],
+                        source: 'activity',
+                      }))
+                    )
 
                     const elabCard = (elab, isGap) => {
                       const countKey = `${cat.key}::${elab.key}`
@@ -954,6 +993,7 @@ export default function UnitsPage() {
 
                     const TABS = [
                       { key: 'content', label: `Content (${contentItems.length})` },
+                      { key: 'activities', label: `Activities (${activityItems.length})` },
                       { key: 'competency', label: `Curricular Competency` },
                     ]
 
@@ -1015,6 +1055,50 @@ export default function UnitsPage() {
                               </div>
                             )}
 
+                            {startingView === 'activities' && (
+                              <div style={{ marginBottom: 4 }}>
+                                {activityGroups.map((g, gi) => {
+                                  const groupItems = activityItems.filter((it) => it.group === g.group)
+                                  const visible = groupItems.filter((it) => !isElabCovered(it))
+                                  if (visible.length === 0 && groupItems.every(isElabCovered)) {
+                                    // Whole group already added -- skip showing an empty section.
+                                    return null
+                                  }
+                                  return (
+                                    <div key={gi} style={{ marginBottom: 12 }}>
+                                      <h4 style={{ fontSize: 11, color: colors.text, fontWeight: 700, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                                        {g.icon} {g.group}
+                                      </h4>
+                                      <ul style={{ margin: 0, paddingLeft: 20, listStyle: 'disc' }}>
+                                        {groupItems.map((item) => {
+                                          const added = isElabCovered(item)
+                                          return (
+                                            <li key={item.key} style={{ fontSize: 13, color: added ? '#999' : '#333', lineHeight: 1.5, marginBottom: 4 }}>
+                                              <span style={{ textDecoration: added ? 'line-through' : 'none', fontWeight: 600 }}>{item.label}</span>
+                                              {added ? (
+                                                <span style={{ fontSize: 11, color: '#1a7a3e', marginLeft: 8 }}>✓ added</span>
+                                              ) : (
+                                                <button
+                                                  onClick={() => addUnitFromElaboration(subject, item, cat.key, 1, '')}
+                                                  disabled={addingElabKey === item.key}
+                                                  style={{ marginLeft: 8, fontSize: 11, padding: '1px 8px', background: 'none', border: `1px solid ${colors.border}`, borderRadius: 10, color: colors.text, cursor: 'pointer' }}
+                                                >
+                                                  {addingElabKey === item.key ? '…' : '+ add'}
+                                                </button>
+                                              )}
+                                              {!added && item.description && (
+                                                <div style={{ fontSize: 11, color: '#777' }}>{item.description}</div>
+                                              )}
+                                            </li>
+                                          )
+                                        })}
+                                      </ul>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+
                             {startingView === 'competency' && (
                               <CompetencyTabContent
                                 subject={subject}
@@ -1025,6 +1109,28 @@ export default function UnitsPage() {
                                 elabCard={elabCard}
                               />
                             )}
+
+                            <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px dashed ${colors.border}` }}>
+                              <p style={{ fontSize: 11, fontWeight: 700, color: colors.text, margin: '0 0 6px' }}>
+                                Not in the lists above? Add your own idea:
+                              </p>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <input
+                                  value={customIdeaText[cat.key] || ''}
+                                  onChange={(e) => setCustomIdeaText((prev) => ({ ...prev, [cat.key]: e.target.value }))}
+                                  onKeyDown={(e) => e.key === 'Enter' && addCustomIdea(subject, cat)}
+                                  placeholder="e.g. something specific to how you like to teach this"
+                                  style={{ flex: 1, fontSize: 12, padding: '6px 10px', border: `1px solid ${colors.border}`, borderRadius: 6 }}
+                                />
+                                <button
+                                  onClick={() => addCustomIdea(subject, cat)}
+                                  disabled={!((customIdeaText[cat.key] || '').trim())}
+                                  style={{ padding: '6px 14px', background: colors.text, color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (customIdeaText[cat.key] || '').trim() ? 1 : 0.5 }}
+                                >
+                                  + Add
+                                </button>
+                              </div>
+                            </div>
 
                             {!isLastCat && (
                               <button
