@@ -310,7 +310,7 @@ export default function UnitsPage() {
   // the page where units actually get built and sequenced. Per Aj's
   // 2026-07-17 note: teachers shouldn't have to think about instance counts
   // or unit length at this stage, just "yes, make sure this is in the plan."
-  async function addUnitFromElaboration(subject, elab, categoryKey, count = 1, note = '') {
+  async function addUnitFromElaboration(subject, elab, categoryKey, count = 1, note = '', isFocus = false) {
     if (inFlightElabKeys.current.has(elab.key)) return
     inFlightElabKeys.current.add(elab.key)
     setAddingElabKey(elab.key)
@@ -320,7 +320,7 @@ export default function UnitsPage() {
         body: JSON.stringify({
           addUnit: {
             subject, unit_name: elab.label, la_categories: [categoryKey],
-            source_elaboration_key: elab.key,
+            source_elaboration_key: elab.key, is_focus_unit: isFocus,
             ...(note ? { content_summary: note } : {}),
           },
         }),
@@ -935,10 +935,13 @@ export default function UnitsPage() {
                       if (!isGap) {
                         // Already in the cart -- shrink to a one-line, greyed-out row
                         // instead of taking up full card space, per Aj's 2026-07-17 request.
+                        const matched = subjectUnits.find((u) => u.source_elaboration_key === elab.key || u.unit_name.toLowerCase() === elab.label.toLowerCase())
                         return (
                           <div key={elab.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px', opacity: 0.55, background: '#f4f4f2', border: `1px solid ${colors.border}`, borderRadius: 6 }}>
                             <span style={{ fontSize: 11, fontWeight: 600, color: '#666', flex: 1 }}>{elab.label}</span>
-                            <span style={{ fontSize: 10, color: '#888', whiteSpace: 'nowrap' }}>✓ already added to Year Long Plan</span>
+                            <span style={{ fontSize: 10, color: '#888', whiteSpace: 'nowrap' }}>
+                              {matched?.is_focus_unit ? '🎯 Focus unit' : '✓ Non-focus -- will be combined into a micro-unit'}
+                            </span>
                           </div>
                         )
                       }
@@ -975,15 +978,31 @@ export default function UnitsPage() {
                                   />
                                 </div>
                               )}
+                              {isGap && (
+                                <p style={{ fontSize: 10, color: '#888', margin: '6px 0 0', lineHeight: 1.4 }}>
+                                  All Curricular Competencies get taught -- this choice is just about HOW.
+                                  Non-focus items will be combined logically together into micro-units that
+                                  can be embedded within your focus units, rather than each becoming a full
+                                  standalone unit.
+                                </p>
+                              )}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'stretch' }}>
                               <button
-                                onClick={() => addUnitFromElaboration(subject, elab, cat.key, 1, manualText)}
+                                onClick={() => addUnitFromElaboration(subject, elab, cat.key, 1, manualText, true)}
                                 disabled={addingElabKey === elab.key}
-                                title="Adds this idea to your Year Long Plan cart -- just the general idea for now, no need to work out the details yet. AI will combine everything you've added into full units on the next page."
+                                title="This becomes its own standalone unit in the Year Long Plan."
                                 style={{ padding: '4px 10px', background: colors.text, color: '#fff', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
                               >
-                                {addingElabKey === elab.key ? 'Adding…' : '+ Add to Year Long Plan'}
+                                {addingElabKey === elab.key ? 'Adding…' : '🎯 Make this a Focus Unit'}
+                              </button>
+                              <button
+                                onClick={() => addUnitFromElaboration(subject, elab, cat.key, 1, manualText, false)}
+                                disabled={addingElabKey === elab.key}
+                                title="Still gets taught -- combined with other non-focus competencies into a shared micro-unit later, rather than getting its own full unit."
+                                style={{ padding: '4px 10px', background: '#fff', color: colors.text, border: `1px solid ${colors.border}`, borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                              >
+                                {addingElabKey === elab.key ? 'Adding…' : '+ Add as Non-Focus'}
                               </button>
                             </div>
                           </div>

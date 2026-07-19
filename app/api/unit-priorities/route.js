@@ -82,7 +82,7 @@ export async function POST(request) {
     //   this unit was built from (so the teacher can always trace what
     //   content it's supposed to cover).
     if (body.addUnit) {
-      const { subject, unit_name, la_categories, content_summary, curricular_competency, source_elaboration_key } = body.addUnit
+      const { subject, unit_name, la_categories, content_summary, curricular_competency, source_elaboration_key, is_focus_unit } = body.addUnit
       if (subject && unit_name) {
         // Durable de-dup guard, added 2026-07-19: this insert previously had
         // no protection against the same elaboration being added twice --
@@ -111,6 +111,7 @@ export async function POST(request) {
           content_summary: content_summary || null,
           curricular_competency: curricular_competency || null,
           source_elaboration_key: source_elaboration_key || null,
+          is_focus_unit: !!is_focus_unit,
         }])
       }
     }
