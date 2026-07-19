@@ -1,6 +1,6 @@
 import { getCurrentUser } from '@/lib/session'
 import { extractPdfText } from '@/lib/pdf-extract'
-import { sbSelect, sbInsert, sbUpdate } from '@/lib/supabase'
+import { sbSelect, sbInsert, sbUpdate, sbUploadFile } from '@/lib/supabase'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -11,6 +11,12 @@ export const maxDuration = 60
 // they always want included in point form, and can optionally attach a PDF
 // they like using for reference. Nothing here is auto-turned into units;
 // it's read by whatever builds the year plan on the next step.
+//
+// 2026-07-19: PDF uploads here now also save into forge_resources (Project
+// Forge) the same way app/api/units/upload-resource does -- this was a
+// genuine "end user uploads a PDF" path that wasn't feeding Forge yet.
+// Best-effort: if the Forge copy fails, the subject note upload still
+// succeeds (that's the primary feature; Forge is a secondary side-effect).
 
 export async function GET(request) {
   const user = await getCurrentUser()
@@ -50,6 +56,18 @@ export async function POST(request) {
 
       const existing = await sbSelect('subject_activity_notes', `?user_id=eq.${user.id}&subject=eq.${encodeURIComponent(subject)}&select=id,uploaded_docs`)
       const newDoc = { filename: file.name, extracted_text: extracted.text.slice(0, 40000), uploaded_at: new Date().toISOString() }
+
+      try {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+        const fileUrl = await sbUploadFile('forge-resources', `${user.id}/${Date.now()}-${safeName}`, buffer, 'application/pdf')
+        await sbInsert('forge_resources', [{
+          user_id: user.id, subject, source_type: 'pdf', title: file.name,
+          original_text: extracted.text.slice(0, 20000), file_url: fileUrl,
+        }])
+      } catch (e) {
+        // Non-fatal -- subject note upload still succeeds without the Forge copy.
+        console.error('forge_resources copy failed for activity-notes upload:', e.message)
+      }
 
       if (existing[0]) {
         const docs = [...(existing[0].uploaded_docs || []), newDoc]

@@ -9,9 +9,15 @@
 // central storage where any uploaded PDF or URL can be edited/remixed and
 // then either pushed into AI steering documents or marked for a future
 // TPT listing, independent of which unit it was originally attached to.
+//
+// 2026-07-19: also uploads the original file bytes to the forge-resources
+// storage bucket and saves file_url -- previously only extracted text was
+// kept, so the actual source PDF was lost. Best-effort: if the storage
+// upload fails, the forge_resources row is still saved text-only rather
+// than failing the whole request.
 import { getCurrentUser } from '@/lib/session'
 import { extractPdfText } from '@/lib/pdf-extract'
-import { sbInsert } from '@/lib/supabase'
+import { sbInsert, sbUploadFile } from '@/lib/supabase'
 
 export async function POST(request) {
   const user = await getCurrentUser()
@@ -33,10 +39,20 @@ export async function POST(request) {
 
     const text = extracted.text.slice(0, 20000)
 
+    let fileUrl = null
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      fileUrl = await sbUploadFile('forge-resources', `${user.id}/${Date.now()}-${safeName}`, buffer, 'application/pdf')
+    } catch (e) {
+      // Non-fatal -- the resource still saves with its extracted text even
+      // if the raw file couldn't be stored.
+      console.error('forge-resources file upload failed:', e.message)
+    }
+
     const [forgeRow] = await sbInsert('forge_resources', [{
       user_id: user.id, subject, unit_name: unitName,
       source_type: 'pdf', title: file.name,
-      original_text: text,
+      original_text: text, file_url: fileUrl,
     }])
 
     return Response.json({
