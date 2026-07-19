@@ -84,6 +84,25 @@ export async function POST(request) {
     if (body.addUnit) {
       const { subject, unit_name, la_categories, content_summary, curricular_competency, source_elaboration_key } = body.addUnit
       if (subject && unit_name) {
+        // Durable de-dup guard, added 2026-07-19: this insert previously had
+        // no protection against the same elaboration being added twice --
+        // e.g. a fast double-click firing two requests before the client's
+        // state-driven `disabled` re-render could catch up (React state
+        // updates aren't synchronous, so there's a real window where two
+        // click events can both reach here before the first response comes
+        // back and the UI reflects "already added"). Result: two identical
+        // rows, both showing as "added"/line-through, i.e. a duplicated
+        // task. Checking for an existing row with the same
+        // source_elaboration_key here closes the gap server-side, which is
+        // the only place it can be closed reliably -- no client-side fix
+        // alone can fully rule out the race.
+        if (source_elaboration_key) {
+          const existing = await sbSelect('unit_priorities', `?user_id=eq.${user.id}&subject=eq.${encodeURIComponent(subject)}&source_elaboration_key=eq.${encodeURIComponent(source_elaboration_key)}&select=id&limit=1`)
+          if (existing.length > 0) {
+            const rows = await sbSelect('unit_priorities', `?user_id=eq.${user.id}&select=*&order=subject.asc,sort_order.asc`)
+            return Response.json({ units: rows, mismatch: null })
+          }
+        }
         const existingForSubject = await sbSelect('unit_priorities', `?user_id=eq.${user.id}&subject=eq.${encodeURIComponent(subject)}&select=sort_order&order=sort_order.desc&limit=1`)
         const nextSortOrder = (existingForSubject[0]?.sort_order ?? -1) + 1
         await sbInsert('unit_priorities', [{

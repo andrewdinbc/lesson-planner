@@ -1,5 +1,6 @@
 import DevModePanel from "../developer-mode/DevModePanel";
 import Header from "../components/Header";
+import GlobalResourceWidget from "../components/GlobalResourceWidget";
 
 export const metadata = { title:"lesson-planner", description:"AI-powered lesson, unit, and year planning tool for BC, Alberta, and Ontario teachers." };
 export default function RootLayout({ children }) {
@@ -8,6 +9,7 @@ export default function RootLayout({ children }) {
       <body>
         <Header />
         {children}
+        <GlobalResourceWidget />
         <DevModePanel
           productName="Lesson Planner (Curriculum Designer)"
           sourceRepo="andrewdinbc/lesson-planner"

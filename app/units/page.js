@@ -293,6 +293,14 @@ export default function UnitsPage() {
     setCollapsedSubjects((prev) => ({ ...prev, [subject]: !prev[subject] }))
   }
 
+  // Synchronous in-flight guard -- addingElabKey (state) drives the button's
+  // `disabled` prop, but state updates aren't synchronous, so a fast
+  // double-click can fire this twice before the first render reflects
+  // "in progress." This ref is checked/set immediately, closing that gap
+  // client-side; the server-side de-dup check in /api/unit-priorities is
+  // the durable backstop regardless. 2026-07-19.
+  const inFlightElabKeys = useRef(new Set())
+
   // "Add to Year Long Plan" -- this is a cart, not a builder. It just
   // records the general idea (plus an optional note, e.g. "Hatchet novel
   // study") against the strand it's being added from. No AI runs here and
@@ -301,6 +309,8 @@ export default function UnitsPage() {
   // 2026-07-17 note: teachers shouldn't have to think about instance counts
   // or unit length at this stage, just "yes, make sure this is in the plan."
   async function addUnitFromElaboration(subject, elab, categoryKey, count = 1, note = '') {
+    if (inFlightElabKeys.current.has(elab.key)) return
+    inFlightElabKeys.current.add(elab.key)
     setAddingElabKey(elab.key)
     try {
       const res = await fetch('/api/unit-priorities', {
@@ -316,6 +326,7 @@ export default function UnitsPage() {
       const data = await res.json()
       if (res.ok) setUnits(data.units || units)
     } finally {
+      inFlightElabKeys.current.delete(elab.key)
       setAddingElabKey(null)
     }
   }
