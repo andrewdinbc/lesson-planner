@@ -2,6 +2,7 @@ import { sbInsert } from '../../../../lib/supabase'
 import { getCurrentUser } from '../../../../lib/session'
 import { extractPdfText } from '../../../../lib/pdf-extract'
 import { STEERING_CATEGORY_MAP, DEFAULT_CATEGORY } from '../../../../lib/steering-categories'
+import { isSubstantiveText } from '../../../../lib/content-extraction-guard'
 
 // Large-file upload path: the browser uploads the PDF straight to Vercel
 // Blob (bypassing the 4.5MB serverless function body limit entirely),
@@ -53,7 +54,7 @@ export async function POST(request) {
       return Response.json({ error: `Could not read PDF: ${e.message}` }, { status: 422 })
     }
 
-    if (!extracted.text || extracted.text.trim().length < 50) {
+    if (!isSubstantiveText(extracted.text)) {
       return Response.json(
         { error: 'Extracted almost no text - this PDF may be scanned images rather than real text, which this upload path can\u2019t read.' },
         { status: 422 }

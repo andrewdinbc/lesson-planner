@@ -3,6 +3,7 @@ import { sbInsert } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/session'
 import { DEFAULT_CATEGORY } from '@/lib/steering-categories'
 import { checkLink } from '@/lib/link-check'
+import { isLikelyFailedWebScrape, extractScrapeFailureReason } from '@/lib/content-extraction-guard'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -68,7 +69,7 @@ export async function POST(request) {
     // failure mode, saved anyway because nothing checked before insert.
     // Two checks now, matching the standard upload-from-url/route.js
     // already holds PDF uploads to (<50 chars extracted = reject):
-    if (pageText.length < 400) {
+    if (isLikelyFailedWebScrape(pageText)) {
       return Response.json({
         error: `This page returned almost no readable text (${pageText.length} characters) -- it's likely JavaScript-rendered (common for YouTube channel pages and single-page apps) and can't be scraped this way. Try a direct article or transcript URL instead of a channel/home page.`,
       }, { status: 422 })
@@ -101,9 +102,10 @@ ${pageText}`
 
     const summary = response.content.find((b) => b.type === 'text')?.text || ''
 
-    if (summary.trim().startsWith('SCRAPE_INSUFFICIENT')) {
+    const scrapeFailureReason = extractScrapeFailureReason(summary)
+    if (scrapeFailureReason) {
       return Response.json({
-        error: `Couldn't extract usable content from this page: ${summary.trim().replace(/^SCRAPE_INSUFFICIENT:\s*/, '')}`,
+        error: `Couldn't extract usable content from this page: ${scrapeFailureReason}`,
       }, { status: 422 })
     }
 

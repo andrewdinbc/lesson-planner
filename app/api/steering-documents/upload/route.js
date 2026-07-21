@@ -2,6 +2,7 @@ import { sbInsert } from '../../../../lib/supabase'
 import { getCurrentUser } from '../../../../lib/session'
 import { extractPdfText } from '../../../../lib/pdf-extract'
 import { STEERING_CATEGORY_MAP, DEFAULT_CATEGORY } from '../../../../lib/steering-categories'
+import { isSubstantiveText } from '../../../../lib/content-extraction-guard'
 
 // Full-book upload path: PDFs of 100+ pages get their text extracted
 // server-side and stored whole (Postgres TEXT has no meaningful size limit
@@ -62,7 +63,7 @@ export async function POST(request) {
       return Response.json({ error: `Could not read PDF: ${e.message}` }, { status: 422 })
     }
 
-    if (!extracted.text || extracted.text.trim().length < 50) {
+    if (!isSubstantiveText(extracted.text)) {
       return Response.json(
         { error: 'Extracted almost no text - this PDF may be scanned images rather than real text, which this upload path can\u2019t read.' },
         { status: 422 }

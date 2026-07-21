@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { getCurrentUser } from '@/lib/session'
 import { extractPdfText } from '@/lib/pdf-extract'
 import { sbSelect, sbInsert, sbUpdate } from '@/lib/supabase'
+import { isSubstantiveText } from '@/lib/content-extraction-guard'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -86,6 +87,16 @@ export async function POST(request) {
       extracted = await extractPdfText(buffer)
     } catch (e) {
       return Response.json({ error: `Could not read PDF: ${e.message}` }, { status: 422 })
+    }
+
+    // Global fix (2026-07-21): unconditional use of extracted.text below
+    // -- a scanned-image PDF would silently produce an empty regex pass,
+    // a wasted AI call, and a near-empty teacher_inventories row. See
+    // lib/content-extraction-guard.js.
+    if (!isSubstantiveText(extracted.text)) {
+      return Response.json({
+        error: 'Extracted almost no text from this PDF -- it may be scanned images rather than real text, which this upload path can\u2019t read.',
+      }, { status: 422 })
     }
 
     let summary = parseSummaryRegex(extracted.text)

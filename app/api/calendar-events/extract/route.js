@@ -12,6 +12,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { getCurrentUser } from '@/lib/session'
 import { extractPdfText } from '@/lib/pdf-extract'
 import { sbInsert } from '@/lib/supabase'
+import { isSubstantiveText } from '@/lib/content-extraction-guard'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -61,6 +62,16 @@ export async function POST(request) {
       extracted = await extractPdfText(buffer)
     } catch (e) {
       return Response.json({ error: `Could not read PDF: ${e.message}` }, { status: 422 })
+    }
+
+    // Global fix (2026-07-21): this route ran the AI parse and saved to
+    // staff_document_notes unconditionally -- a scanned-image PDF would
+    // silently produce an empty/near-empty entry and waste an AI call
+    // trying to parse nothing. See lib/content-extraction-guard.js.
+    if (!isSubstantiveText(extracted.text)) {
+      return Response.json({
+        error: 'Extracted almost no text from this PDF -- it may be scanned images rather than real text, which this upload path can\u2019t read.',
+      }, { status: 422 })
     }
 
     const todayIso = new Date().toISOString().slice(0, 10)
