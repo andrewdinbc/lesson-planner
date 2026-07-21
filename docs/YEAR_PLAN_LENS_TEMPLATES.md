@@ -215,4 +215,6 @@ All three prior open questions are now resolved:
 2. Lens choice scope — resolved above (primary/secondary two-tier model).
 3. Standards-Based month gap — filled above.
 
+**Sequencing update, 2026-07-21 — see `docs/YEAR_PLAN_SEQUENCING_REFINED.md`.** This doc's "ready to move to Week-by-week planning" note (below) skipped 4 steps a real teacher takes first: summative assessment planning, formative assessment mapping, differentiation/supports, and resources/materials — all mapped against Aj's reference teacher workflow in the refined doc. Week-by-week generation should follow *that* plan for Unit Assessment & Support first, not go straight from Unit Priority to Week/Day content as originally noted here.
+
 Ready to move to Week-by-week planning. Week generation logic should implement the windowing model above: read lens period + week count → read unit priorities inside that window → distribute tasks.
