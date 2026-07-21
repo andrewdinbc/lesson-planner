@@ -60,6 +60,20 @@ export async function POST(request) {
       return Response.json({ error: `Could not reach ${url}: ${e.message}` }, { status: 400 })
     }
 
+    // FIXED 2026-07-21: checkLink above only confirms the URL responds,
+    // not that a plain HTTP fetch can actually read its content -- most
+    // JS-rendered sites (YouTube channel pages, SPAs) return 200 with a
+    // near-empty page shell, no real content until client-side JS runs.
+    // 21 of 40 real steering documents turned out to be exactly this
+    // failure mode, saved anyway because nothing checked before insert.
+    // Two checks now, matching the standard upload-from-url/route.js
+    // already holds PDF uploads to (<50 chars extracted = reject):
+    if (pageText.length < 400) {
+      return Response.json({
+        error: `This page returned almost no readable text (${pageText.length} characters) -- it's likely JavaScript-rendered (common for YouTube channel pages and single-page apps) and can't be scraped this way. Try a direct article or transcript URL instead of a channel/home page.`,
+      }, { status: 422 })
+    }
+
     const prompt = `You are building a reference summary for a teacher's lesson-planning tool. Below is raw
 extracted text from a webpage. Write a substantial, well-organized summary (in your own words,
 not quoted) of the concrete teaching strategies, frameworks, or resources described - this will be
@@ -67,6 +81,12 @@ used to ground lesson generation in real best practices from this source. Focus 
 actionable a teacher could apply directly. Include the names of specific named strategies/
 techniques if the page describes them, since those names are useful to reference. Do not
 reproduce large blocks of the original wording - paraphrase and synthesize.
+
+If the raw page text below does NOT contain enough real, substantive content to write a genuine
+summary -- e.g. it's mostly navigation/legal boilerplate, a "JavaScript required" or login/paywall
+message, or an error page -- do not attempt to write a summary or describe what the site is
+"known for" from general knowledge. Instead respond with EXACTLY this and nothing else:
+SCRAPE_INSUFFICIENT: <one sentence explaining what the raw text actually contained>
 
 URL: ${url}
 
@@ -80,6 +100,13 @@ ${pageText}`
     })
 
     const summary = response.content.find((b) => b.type === 'text')?.text || ''
+
+    if (summary.trim().startsWith('SCRAPE_INSUFFICIENT')) {
+      return Response.json({
+        error: `Couldn't extract usable content from this page: ${summary.trim().replace(/^SCRAPE_INSUFFICIENT:\s*/, '')}`,
+      }, { status: 422 })
+    }
+
     const fullText = `Source: ${url}\n\n${summary}`
 
     const [doc] = await sbInsert('steering_documents', [{
@@ -95,6 +122,7 @@ ${pageText}`
       link_status: 'ok',
       http_status_code: linkCheck.statusCode,
       last_checked_at: new Date().toISOString(),
+      is_valid: true,
     }])
 
     return Response.json({ document: { id: doc.id, title: doc.title, category: doc.category, subject: doc.subject, source_url: url, created_at: doc.created_at, linkCheck } })
