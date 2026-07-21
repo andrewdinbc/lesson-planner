@@ -64,6 +64,7 @@ Proposed fields (one row per unit, all optional — matches the app's existing p
 - `formative_checkpoints` — free text or a short repeatable list (e.g. "exit ticket after lesson 3", "first-draft conference")
 - `differentiation_notes` — free text, taggable by the reference's own 4 categories: ELL / IEP / enrichment / scaffold
 - `resources_needed` — free text or tag list, taggable by the reference's own 6 categories: textbook / digital tool / manipulative / lab supply / reading / media
+  (→ **see `project-forge/docs/CURRICULUM_BUNDLE_GENERATION_SPEC.md`** for the spec that turns this field into an actual auto-generated, sellable year-long resource bundle instead of just a tag — new 2026-07-20, not yet built)
 
 ## Step 2 recommendation
 Add a small read-only "This Year's Goals" summary, generated from the chosen lens's period labels, shown once before a teacher starts adjusting % sliders — makes step 2 an explicit, visible moment instead of something a teacher only infers backward from the periods they're about to reweight.
