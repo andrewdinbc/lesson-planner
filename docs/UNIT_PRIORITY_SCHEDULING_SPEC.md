@@ -34,5 +34,7 @@ After a teacher has selected grades + subjects (already captured in the inventor
 - Non-Language-Arts, non-Math subject unit-breakdown convention — TBD
 
 ## Sequencing
-Confirmed flow so far: Grade/Subject selection → BC curriculum fetch (shipped) → **Unit generation + priority (this spec)** → Weekly Schedule Builder (drag/reflow grid) → mismatch warnings likely need both systems in place to fully resolve.
+**Updated 2026-07-21 — see `docs/YEAR_PLAN_SEQUENCING_REFINED.md`.** Refined against a real teacher-authentic year-planning workflow: this spec's units (step 3-5 territory: determine/sequence/allocate) get followed by **Unit Assessment & Support Planning** (summative assessment, formative checkpoints, differentiation, resources — steps 6/7/9/10, previously missing from every spec) *before* Week/Day content generation begins, not after.
+
+Flow, refined: Grade/Subject selection → BC curriculum fetch (shipped) → **Unit generation + priority (this spec)** → **Unit Assessment & Support Planning (new, see refined doc)** → Month/Week/Day generation → Weekly Schedule Builder (drag/reflow grid) → mismatch warnings likely need both systems in place to fully resolve.
 Status: **spec only, not yet built.**
