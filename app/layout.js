@@ -1,6 +1,7 @@
 import DevModePanel from "../developer-mode/DevModePanel";
 import Header from "../components/Header";
 import GlobalResourceWidget from "../components/GlobalResourceWidget";
+import MorpheusChat from "../components/MorpheusChat";
 
 export const metadata = { title:"lesson-planner", description:"AI-powered lesson, unit, and year planning tool for BC, Alberta, and Ontario teachers." };
 export default function RootLayout({ children }) {
@@ -20,6 +21,7 @@ export default function RootLayout({ children }) {
           audienceLabel="a K-12 teacher planning curriculum"
           mode="personal"
         />
+              <MorpheusChat productName="Lesson Planner" />
       </body>
     </html>
   );
